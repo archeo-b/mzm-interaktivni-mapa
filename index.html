@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="cs" class="h-full w-full m-0 p-0 overflow-hidden">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Interaktivní mapa</title>
+
+  <!-- LOKÁLNÍ KNIHOVNY (Složka lib/) -->
+  <link rel="stylesheet" href="lib/leaflet.css">
+  <script src="lib/tailwind.js"></script>
+  <script src="lib/leaflet.js"></script>
+  <script src="lib/lucide.min.js"></script>
+  <script src="lib/xlsx.full.min.js"></script>
+  <script src="lib/proj4.js"></script>
+
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #020617;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+
+    #map {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+      background: #020617;
+    }
+
+    /* Bodové značky */
+    .custom-dot-marker {
+      background: none;
+      border: none;
+    }
+    
+    .dot-element {
+      width: 18px;
+      height: 18px;
+      background-color: #2563eb;
+      border: 2.5px solid #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+      cursor: pointer;
+      transition: transform 0.15s ease-in-out, background-color 0.15s ease;
+    }
+
+    .dot-element:hover {
+      transform: scale(1.3);
+      background-color: #3b82f6;
+    }
+
+    /* Scrollbar pro modal */
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body class="relative w-full h-full select-none">
+
+  <!-- MAPOVÝ KONTEJNER -->
+  <div id="map"></div>
+
+  <!-- DETAILNÍ KARTA O BODU (MODAL OKÉNSKO) -->
+  <div id="modalOverlay" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/30 backdrop-blur-[2px] transition-all duration-300 opacity-0">
+    <div class="absolute inset-0" onclick="closeModal()"></div>
+
+    <div id="modalCard" class="relative z-10 w-full max-w-xl bg-slate-900/95 border border-slate-700/80 rounded-3xl shadow-2xl text-white overflow-hidden transform scale-95 transition-all duration-300 flex flex-col max-h-[85vh]">
+      
+      <!-- Hlavička karty (1. Title, 2. Category) -->
+      <div class="flex items-start justify-between p-5 border-b border-slate-800/80 bg-slate-900/50">
+        <div>
+          <!-- 1. TITLE -->
+          <h2 id="modalTitle" class="text-xl sm:text-2xl font-bold text-white tracking-tight mb-1">
+            Název lokality
+          </h2>
+          <!-- 2. CATEGORY -->
+          <span id="modalCategory" class="inline-block px-2.5 py-0.5 text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-full">
+            Kategorie
+          </span>
+        </div>
+        <button onclick="closeModal()" class="p-2 bg-slate-800/60 hover:bg-slate-700 text-slate-300 hover:text-white rounded-full transition border border-slate-700/50 flex-shrink-0 ml-4">
+          <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+      </div>
+
+      <!-- Tělo karty (3. Text s odstavci, 4. Obrázek) -->
+      <div class="p-5 overflow-y-auto custom-scroll flex-1 space-y-4">
+        <!-- 3. TEXT (zarovnání do bloku a podpora '|') -->
+        <div id="modalText" class="text-slate-300 text-sm sm:text-base leading-relaxed">
+          <!-- Dynamické odstavce -->
+        </div>
+
+        <!-- 4. OBRÁZEK (PŘÍPADNÝ) -->
+        <div id="modalImageContainer" class="rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 hidden">
+          <img id="modalImage" src="" alt="" class="w-full h-56 sm:h-64 object-cover">
+        </div>
+      </div>
+
+      <!-- Patička s navigací stránek -->
+      <div id="modalFooter" class="flex items-center justify-between p-4 border-t border-slate-800/80 bg-slate-900/80">
+        <button id="prevPageBtn" onclick="changePage(-1)" class="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-medium transition disabled:opacity-30 disabled:cursor-not-allowed">
+          <i data-lucide="chevron-left" class="w-4 h-4"></i> Předchozí
+        </button>
+
+        <span id="pageIndicator" class="text-xs font-medium text-slate-400 tracking-wider uppercase">
+          Strana 1 z 1
+        </span>
+
+        <button id="nextPageBtn" onclick="changePage(1)" class="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-medium transition disabled:opacity-30 disabled:cursor-not-allowed">
+          Další <i data-lucide="chevron-right" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- APLIKAČNÍ LOGIKA -->
+  <script>
+    // 1. REGISTRACE KŘOVÁKOVA ZOBRAZENÍ (S-JTSK)
+    proj4.defs("EPSG:5514", "+proj=krovak +lat_0=49.5 +lon_0=24.83333333333333 +alpha=30.28813975277778 +k=0.9999 +x_0=0 +y_0=0 +ellps=bessel +towgs84=570.8,85.7,462.8,4.998,1.587,5.261,3.56 +units=m +no_defs");
+
+    const CONFIG = {
+      imageUrl: 'mapa.jpg',
+      jgwUrl: 'mapa.jgw',
+      excelUrl: 'body.xlsx'
+    };
+
+    let worldFile = { pixelSizeX: 0, pixelSizeY: 0, originX: 0, originY: 0 };
+    let imageSize = { width: 0, height: 0 };
+
+    let map, imageLayer;
+    let pointsData = [];
+    let markersMap = new Map();
+    let imageBounds = [[0, 0], [0, 0]];
+
+    let currentPoint = null;
+    let currentPageIndex = 0;
+
+    let previousZoom = null;
+    let previousCenter = null;
+
+    // 2. NAČTENÍ SOUBORU JGW A ROZMĚRŮ OBRÁZKU
+    async function loadWorldFile() {
+      const response = await fetch(CONFIG.jgwUrl);
+      const text = await response.text();
+      const lines = text.trim().split(/\r?\n/);
+
+      if (lines.length >= 6) {
+        worldFile.pixelSizeX = parseFloat(lines[0]);
+        worldFile.pixelSizeY = parseFloat(lines[3]);
+        worldFile.originX = parseFloat(lines[4]);
+        worldFile.originY = parseFloat(lines[5]);
+      }
+    }
+
+    function getImageDimensions(url) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+        img.onerror = reject;
+        img.src = url;
+      });
+    }
+
+    // Přepočet GPS -> Pixely
+    function gpsToPixel(lat, lng) {
+      const sjtsk = proj4("EPSG:4326", "EPSG:5514", [lng, lat]);
+      const pixelX = (sjtsk[0] - worldFile.originX) / worldFile.pixelSizeX;
+      const pixelY = imageSize.height - ((sjtsk[1] - worldFile.originY) / worldFile.pixelSizeY);
+      return [pixelY, pixelX];
+    }
+
+    // Minimální zoom bez okrajů při výchozím zobrazení
+    function calculateMinZoom() {
+      const zoomX = Math.log2(window.innerWidth / imageSize.width);
+      const zoomY = Math.log2(window.innerHeight / imageSize.height);
+      return Math.max(zoomX, zoomY);
+    }
+
+    // 3. INICIALIZACE MAPY
+    async function initMap() {
+      try {
+        await loadWorldFile();
+        imageSize = await getImageDimensions(CONFIG.imageUrl);
+        imageBounds = [[0, 0], [imageSize.height, imageSize.width]];
+
+        const minZoom = calculateMinZoom();
+
+        map = L.map('map', {
+          crs: L.CRS.Simple,
+          minZoom: minZoom,
+          maxZoom: 3,
+          zoomControl: false,
+          attributionControl: false,
+          maxBounds: imageBounds,
+          maxBoundsViscosity: 1.0,
+          bounceAtZoomLimits: false
+        });
+
+        imageLayer = L.imageOverlay(CONFIG.imageUrl, imageBounds).addTo(map);
+        map.setView([imageSize.height / 2, imageSize.width / 2], minZoom);
+
+        window.addEventListener('resize', () => {
+          const newMinZoom = calculateMinZoom();
+          map.setMinZoom(newMinZoom);
+          if (map.getZoom() < newMinZoom) {
+            map.setZoom(newMinZoom);
+          }
+        });
+
+        await loadPointsFromExcel();
+        lucide.createIcons();
+        setTimeout(() => { map.invalidateSize(); }, 200);
+
+      } catch (err) {
+        console.error('Chyba při inicializaci mapy:', err);
+      }
+    }
+
+    // 4. NAČÍTÁNÍ Z EXCELU
+    async function loadPointsFromExcel() {
+      try {
+        const response = await fetch(CONFIG.excelUrl);
+        const arrayBuffer = await response.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rawData = XLSX.utils.sheet_to_json(worksheet);
+
+        pointsData = rawData.map((row, index) => {
+          const pages = [];
+          for (let i = 1; i <= 5; i++) {
+            if (row[`text${i}`] || row[`image${i}`]) {
+              pages.push({
+                text: row[`text${i}`] || '',
+                image: row[`image${i}`] || ''
+              });
+            }
+          }
+
+          return {
+            id: index + 1,
+            title: row.title || 'Bez názvu',
+            category: row.category || '',
+            lat: parseFloat(row.lat),
+            lng: parseFloat(row.lng),
+            pages: pages
+          };
+        });
+
+        renderPoints(pointsData);
+      } catch (error) {
+        console.error('Chyba při načítání souboru body.xlsx:', error);
+      }
+    }
+
+    // 5. VYKRESLOVÁNÍ BODŮ
+    function renderPoints(points) {
+      markersMap.forEach(marker => map.removeLayer(marker));
+      markersMap.clear();
+
+      points.forEach(pt => {
+        if (isNaN(pt.lat) || isNaN(pt.lng)) return;
+
+        const [pxY, pxX] = gpsToPixel(pt.lat, pt.lng);
+
+        const customIcon = L.divIcon({
+          className: 'custom-dot-marker',
+          html: `<div class="dot-element" title="${pt.title}"></div>`,
+          iconSize: [18, 18],
+          iconAnchor: [9, 9]
+        });
+
+        const marker = L.marker([pxY, pxX], { icon: customIcon }).addTo(map);
+        marker.on('click', () => onPointClick(pt, [pxY, pxX]));
+        markersMap.set(pt.id, marker);
+      });
+    }
+
+    // 6. CHOVÁNÍ MODALU A PŘIBLÍŽENÍ
+    function onPointClick(point, pixelCoords) {
+      previousZoom = map.getZoom();
+      previousCenter = map.getCenter();
+
+      const targetZoom = Math.min(map.getMaxZoom(), Math.max(previousZoom + 1.2, 1));
+      map.flyTo(pixelCoords, targetZoom, { animate: true, duration: 0.6 });
+
+      openModal(point);
+    }
+
+    function openModal(point) {
+      currentPoint = point;
+      currentPageIndex = 0;
+
+      document.getElementById('modalTitle').innerText = point.title;
+      document.getElementById('modalCategory').innerText = point.category || 'Detail';
+
+      updateModalPage();
+
+      const overlay = document.getElementById('modalOverlay');
+      const card = document.getElementById('modalCard');
+
+      overlay.classList.remove('hidden');
+      setTimeout(() => {
+        overlay.classList.remove('opacity-0');
+        card.classList.remove('scale-95');
+        card.classList.add('scale-100');
+      }, 10);
+    }
+
+    // FORMÁTOVÁNÍ TEXTU (ODSTAVCE DLE '|', ZAROVNÁNÍ DO BLOKU)
+    function formatTextToParagraphs(rawText) {
+      if (!rawText) return '';
+      const paragraphs = rawText.toString().split('|');
+
+      return paragraphs
+        .map(p => {
+          const trimmed = p.trim().replace(/\r?\n/g, '<br>');
+          if (!trimmed) return '';
+          return `<p class="mb-3 text-justify last:mb-0">${trimmed}</p>`;
+        })
+        .join('');
+    }
+
+    function updateModalPage() {
+      if (!currentPoint || !currentPoint.pages || currentPoint.pages.length === 0) return;
+
+      const page = currentPoint.pages[currentPageIndex];
+      const totalPages = currentPoint.pages.length;
+
+      // 3. TEXT - převod na odstavce oddělené znakem '|'
+      document.getElementById('modalText').innerHTML = formatTextToParagraphs(page.text);
+
+      // 4. OBRÁZEK
+      const imgContainer = document.getElementById('modalImageContainer');
+      const imgEl = document.getElementById('modalImage');
+      if (page.image) {
+        imgEl.src = page.image;
+        imgContainer.classList.remove('hidden');
+      } else {
+        imgContainer.classList.add('hidden');
+      }
+
+      document.getElementById('pageIndicator').innerText = `Strana ${currentPageIndex + 1} z ${totalPages}`;
+      document.getElementById('prevPageBtn').disabled = (currentPageIndex === 0);
+      document.getElementById('nextPageBtn').disabled = (currentPageIndex === totalPages - 1);
+
+      const footer = document.getElementById('modalFooter');
+      if (totalPages <= 1) {
+        footer.classList.add('hidden');
+      } else {
+        footer.classList.remove('hidden');
+      }
+    }
+
+    function changePage(delta) {
+      if (!currentPoint) return;
+      const newIndex = currentPageIndex + delta;
+      if (newIndex >= 0 && newIndex < currentPoint.pages.length) {
+        currentPageIndex = newIndex;
+        updateModalPage();
+      }
+    }
+
+    function closeModal() {
+      const overlay = document.getElementById('modalOverlay');
+      const card = document.getElementById('modalCard');
+
+      overlay.classList.add('opacity-0');
+      card.classList.remove('scale-100');
+      card.classList.add('scale-95');
+
+      setTimeout(() => {
+        overlay.classList.add('hidden');
+      }, 300);
+
+      // Návrat na předchozí zoom a střed
+      if (previousCenter !== null && previousZoom !== null) {
+        map.flyTo(previousCenter, previousZoom, { animate: true, duration: 0.6 });
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', initMap);
+  </script>
+</body>
+</html>
