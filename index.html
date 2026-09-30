@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Interaktivní mapa</title>
 
-  <!-- LOKÁLNÍ KNIHOVNY ZE SLOŽKY lib/ -->
   <link rel="stylesheet" href="lib/leaflet.css">
   <script src="lib/tailwind.js"></script>
   <script src="lib/leaflet.js"></script>
@@ -33,7 +32,6 @@
       background: #020617;
     }
 
-    /* Bodové značky */
     .custom-dot-marker { background: none; border: none; }
     .dot-element {
       width: 18px; height: 18px;
@@ -49,7 +47,6 @@
       background-color: #3b82f6;
     }
 
-    /* Scrollbar pro modal okénko */
     .custom-scroll::-webkit-scrollbar { width: 6px; }
     .custom-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 8px; }
     .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 8px; }
@@ -57,9 +54,19 @@
 </head>
 <body class="relative w-full h-full select-none">
 
+  <!-- PRELOADER -->
+  <div id="loaderScreen" class="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-6 text-white transition-opacity duration-500">
+    <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+    <h2 class="text-xl font-bold mb-2">Přednačítání podkladové mapy...</h2>
+    <p id="loaderStatus" class="text-slate-400 text-sm mb-4">Příprava mřížky dlaždic...</p>
+    <div class="w-72 bg-slate-800 rounded-full h-3 overflow-hidden p-0.5 border border-slate-700">
+      <div id="loaderBar" class="bg-blue-500 h-full rounded-full w-0 transition-all duration-100"></div>
+    </div>
+  </div>
+
   <div id="map"></div>
 
-  <!-- DETAILNÍ KARTA O BODU (MODAL OKÉNSKO) -->
+  <!-- MODAL OKÉNKO -->
   <div id="modalOverlay" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/30 backdrop-blur-[2px] transition-all duration-300 opacity-0">
     <div class="absolute inset-0" onclick="closeModal()"></div>
 
@@ -97,7 +104,10 @@
 
   <script>
     const CONFIG = {
-      excelUrl: 'body.xlsx'
+      excelUrl: 'body.xlsx',
+      minZoom: 8,
+      maxZoom: 15,
+      tileSize: 256
     };
 
     let map;
@@ -109,64 +119,107 @@
     let previousZoom = null;
     let previousCenter = null;
 
-    // Přesné hranice vaší mapy
     const MAP_BOUNDS = L.latLngBounds(
-      L.latLng(48.8, 15.3), // JZ roh
-      L.latLng(50.2, 18.6)  // SV roh
+      L.latLng(48.8872, 15.8019),
+      L.latLng(50.1340, 18.0990)
     );
+
+    function lng2tile(lng, zoom) { return Math.floor((lng + 180) / 360 * Math.pow(2, zoom)); }
+    function lat2tile(lat, zoom) {
+      return Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
+    }
+
+    function generateTileUrls() {
+      const urls = [];
+
+      for (let z = CONFIG.minZoom; z <= CONFIG.maxZoom; z++) {
+        const minX = lng2tile(MAP_BOUNDS.getWest(), z);
+        const maxX = lng2tile(MAP_BOUNDS.getEast(), z);
+        const minY = lat2tile(MAP_BOUNDS.getNorth(), z);
+        const maxY = lat2tile(MAP_BOUNDS.getSouth(), z);
+
+        const xStart = Math.min(minX, maxX);
+        const xEnd = Math.max(minX, maxX);
+        const yStart = Math.min(minY, maxY);
+        const yEnd = Math.max(minY, maxY);
+
+        for (let x = xStart; x <= xEnd; x++) {
+          for (let y = yStart; y <= yEnd; y++) {
+            urls.push(`./tiles/${z}/${x}/${y}.jpg`);
+          }
+        }
+      }
+      return urls;
+    }
+
+    async function preloadAllTiles() {
+      const urls = generateTileUrls();
+      const total = urls.length;
+      let loaded = 0;
+
+      const statusEl = document.getElementById('loaderStatus');
+      const barEl = document.getElementById('loaderBar');
+
+      if (total === 0) return;
+
+      const loadTile = (url) => {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.onload = img.onerror = () => {
+            loaded++;
+            const percent = Math.round((loaded / total) * 100);
+            statusEl.innerText = `Uloženo ${loaded} z ${total} dlaždic (${percent}%)`;
+            barEl.style.width = `${percent}%`;
+            resolve();
+          };
+          img.src = url;
+        });
+      };
+
+      const batchSize = 30;
+      for (let i = 0; i < urls.length; i += batchSize) {
+        const batch = urls.slice(i, i + batchSize).map(url => loadTile(url));
+        await Promise.all(batch);
+      }
+    }
 
     async function initMap() {
       try {
-        console.log('1. Inicializace plynulé mapy Leaflet...');
-        
+        await preloadAllTiles();
+
+        const loader = document.getElementById('loaderScreen');
+        loader.classList.add('opacity-0');
+        setTimeout(() => loader.style.display = 'none', 500);
+
         map = L.map('map', {
-          center: MAP_BOUNDS.getCenter(),
-          zoom: 8,
-          minZoom: 7.5,
-          maxZoom: 15,
           zoomControl: false,
           attributionControl: false,
-          
-          // KLÍČ K PLYNULOSTI A ODSTRANĚNÍ PRUHŮ:
-          zoomSnap: 0,            // Povolí neceločíselné zoomy (např. 8.24) -> vymaže černé okraje na jakémkoliv monitoru!
-          zoomDelta: 0.5,         // Plynulejší skoky při přiblížení
-          wheelPxPerZoomLevel: 120, // Plynulé zoomování kolečkem myši
-          fadeAnimation: true,    // Zapne plynulé prolínání
-          zoomAnimation: true,
-          markerZoomAnimation: true
+          minZoom: CONFIG.minZoom,
+          maxZoom: CONFIG.maxZoom
         });
 
-        console.log('2. Načítání mapových dlaždic...');
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
-          minZoom: 8,
-          maxZoom: 15,
-          attribution: 'MZM Interaktivní mapa',
-          
-          // KLÍČ K ODSTRANĚNÍ ŠACHOVNICE A DLAŽDICOVÁNÍ:
-          keepBuffer: 8,            // Držet v paměti až 8 dlaždic kolem -> okamžité posouvání bez načítání
-          updateWhenZooming: true,  // Ponechá starou mapu roztaženou pod novou, dokud se nenačte nová
-          updateWhenIdle: false,    // Načítat plynule ihned během pohybu
-          tileSize: 256
+          minZoom: CONFIG.minZoom,
+          maxZoom: CONFIG.maxZoom,
+          tileSize: CONFIG.tileSize,
+          zoomOffset: 0,
+          bounds: MAP_BOUNDS,
+          noWrap: true,
+          keepBuffer: 500
         }).addTo(map);
 
-        // Vždy roztáhne mapu tak, aby stoprocentně vyplnila obrazovku
-        fitMapToScreen();
-        window.addEventListener('resize', fitMapToScreen);
+        map.fitBounds(MAP_BOUNDS);
 
-        console.log('3. Načítání bodů z Excelu...');
+        window.addEventListener('resize', () => {
+          map.invalidateSize();
+        });
+
         await loadPointsFromExcel();
         lucide.createIcons();
 
       } catch (err) {
-        console.error('❌ Chyba při inicializaci aplikace:', err);
+        console.error('Chyba při inicializaci aplikace:', err);
       }
-    }
-
-    function fitMapToScreen() {
-      if (!map) return;
-      map.invalidateSize();
-      // fitBounds v kombinaci s zoomSnap: 0 přesně roztáhne mapu na rozměr okna prohlížeče
-      map.fitBounds(MAP_BOUNDS, { padding: [0, 0], animate: false });
     }
 
     async function loadPointsFromExcel() {
@@ -195,9 +248,8 @@
         });
 
         renderPoints(pointsData);
-        console.log(`✅ Úspěšně načteno ${pointsData.length} bodů.`);
       } catch (error) {
-        console.error('❌ Chyba při načítání souboru body.xlsx:', error);
+        console.error('Chyba při načítání souboru body.xlsx:', error);
       }
     }
 
@@ -226,9 +278,9 @@
       previousCenter = map.getCenter();
 
       const currentZoom = map.getZoom();
-      const targetZoom = Math.max(currentZoom, 13);
+      const targetZoom = Math.max(currentZoom, 12);
 
-      map.flyTo(coords, Math.min(targetZoom, 15), { animate: true, duration: 0.6 });
+      map.flyTo(coords, Math.min(targetZoom, CONFIG.maxZoom), { animate: true, duration: 0.6 });
       openModal(point);
     }
 
@@ -244,8 +296,8 @@
       overlay.classList.remove('hidden');
       setTimeout(() => {
         overlay.classList.remove('opacity-0');
-        card.classList.remove('scale-95');
-        card.classList.add('scale-100');
+        card.classList.remove('scale-100');
+        card.classList.add('scale-95');
       }, 10);
     }
 
