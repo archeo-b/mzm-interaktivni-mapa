@@ -23,15 +23,12 @@
       font-family: system-ui, -apple-system, sans-serif;
     }
 
-    /* Mapa zabírá striktně celou plochu okna */
     #map {
       position: absolute;
       top: 0;
       left: 0;
-      right: 0;
-      bottom: 0;
-      width: 100%;
-      height: 100%;
+      width: 100vw;
+      height: 100vh;
       z-index: 1;
       background: #020617;
     }
@@ -112,38 +109,58 @@
     let previousZoom = null;
     let previousCenter = null;
 
+    // SOUŘADNICE HRANIC VAŠÍ VYGENEROVANÉ MAPY
+    const MAP_BOUNDS = L.latLngBounds(
+      L.latLng(48.5, 12.0), // JZ roh
+      L.latLng(51.1, 19.0)  // SV roh
+    );
+
     async function initMap() {
       try {
         console.log('1. Inicializace mapy Leaflet...');
         
-        // Nastavení středu přímo na Moravu/ČR
         map = L.map('map', {
-          center: [49.5, 16.8],     // Střed zájmové oblasti
-          zoom: 8,                  // Výchozí zoom (dlaždice 8)
-          minZoom: 8,               // Zakáže odzoomování pod zoom 8
-          maxZoom: 15,              // Strop přiblížení (max složka v tiles)
           zoomControl: false,
-          attributionControl: false
+          attributionControl: false,
+          maxZoom: 15,
+          maxBoundsViscosity: 1.0 // Pevně drží okraj a nepustí uživatele do černého
         });
 
-        console.log('2. Načítání mapových dlaždic...');
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
           minZoom: 8,
           maxZoom: 15,
+          bounds: MAP_BOUNDS,
           attribution: 'MZM Interaktivní mapa'
         }).addTo(map);
 
-        // Vynutí roztažení mapy na 100 % šířky i výšky obrazovky
-        setTimeout(() => { 
-          map.invalidateSize(); 
-        }, 100);
+        // Vynutit vyplnění celé obrazovky s oříznutím přesahujících okrajů
+        adjustMapCoverage();
 
-        console.log('3. Načítání bodů z Excelu...');
+        console.log('2. Načítání bodů z Excelu...');
         await loadPointsFromExcel();
         lucide.createIcons();
 
       } catch (err) {
         console.error('❌ Chyba při inicializaci aplikace:', err);
+      }
+    }
+
+    // Funkce zajistí, že mapa VŽDY kompletně vyplní obrazovku (pomocí 'cover' výpočtu)
+    function adjustMapCoverage() {
+      if (!map) return;
+
+      map.invalidateSize();
+
+      // Výpočet vhodného minZoom podle aktuálního rozlišení monitoru
+      const boundsZoom = map.getBoundsZoom(MAP_BOUNDS, false);
+      const computedMinZoom = Math.max(8, boundsZoom);
+
+      map.setMinZoom(computedMinZoom);
+      map.setMaxBounds(MAP_BOUNDS);
+
+      // Pokud jsme mimo nebo při načtení, vycentrujeme přesně na střed oblasti
+      if (map.getZoom() < computedMinZoom) {
+        map.setView(MAP_BOUNDS.getCenter(), computedMinZoom);
       }
     }
 
@@ -204,13 +221,13 @@
       previousCenter = map.getCenter();
 
       const currentZoom = map.getZoom();
-      
-      // ZAJIŠTĚNÍ POUZE PŘIBLÍŽENÍ:
-      // Pokud jsme na nižším zoomu, přizoomuje o 2 stupně (max na 15).
-      // Pokud jsme již na zoomu 14 nebo 15, zůstane na něm a NIKDY neodzoomuje.
-      const targetZoom = Math.min(Math.max(currentZoom, currentZoom + 2), 15);
 
-      map.flyTo(coords, targetZoom, { animate: true, duration: 0.6 });
+      // PŘÍSNÁ LOGIKA PŘIBLÍŽENÍ:
+      // Pokud je zoom menší než 13, přiblížíme na 13.
+      // Pokud už jsme na zoomu 13, 14 nebo 15, PONECHÁME stávající zoom (nikdy neodzoomujeme!).
+      const targetZoom = Math.max(currentZoom, 13);
+
+      map.flyTo(coords, Math.min(targetZoom, 15), { animate: true, duration: 0.6 });
       openModal(point);
     }
 
@@ -287,10 +304,8 @@
       }
     }
 
-    // Při změně velikosti okna prohlížeče se mapa automaticky rozprostře na novou šířku/výšku
-    window.addEventListener('resize', () => {
-      if (map) map.invalidateSize();
-    });
+    // Automatický přepočet krytí obrazovky při změně velikosti okna
+    window.addEventListener('resize', adjustMapCoverage);
 
     window.addEventListener('DOMContentLoaded', initMap);
   </script>
