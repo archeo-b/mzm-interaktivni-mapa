@@ -23,12 +23,15 @@
       font-family: system-ui, -apple-system, sans-serif;
     }
 
+    /* Mapa zabírá striktně celou plochu okna */
     #map {
       position: absolute;
       top: 0;
       left: 0;
-      width: 100vw;
-      height: 100vh;
+      right: 0;
+      bottom: 0;
+      width: 100%;
+      height: 100%;
       z-index: 1;
       background: #020617;
     }
@@ -109,42 +112,31 @@
     let previousZoom = null;
     let previousCenter = null;
 
-    // SOUŘADNICE VAŠÍ HRANICE MAPY
-    // DŮLEŽITÉ: Pokud by se vám stále mapa zdála úzká, můžete lehce rozšířit lat/lng rohy.
-    const MAP_BOUNDS = L.latLngBounds(
-      L.latLng(48.5, 12.0), // SW roh
-      L.latLng(51.1, 19.0)  // NE roh
-    );
-
     async function initMap() {
       try {
         console.log('1. Inicializace mapy Leaflet...');
         
+        // Nastavení středu přímo na Moravu/ČR
         map = L.map('map', {
-          minZoom: 8,               // Zamezí odzoomování pod zoom 8
-          maxZoom: 15,              // ZASTAVÍ ZOOM NA ÚROVNI 15 (nepustí do prázdna)
-          maxBounds: MAP_BOUNDS,    // Zamezí posunu za okraj mapy
-          maxBoundsViscosity: 1.0,  // Nepustí okraj mapy do zobrazení
+          center: [49.5, 16.8],     // Střed zájmové oblasti
+          zoom: 8,                  // Výchozí zoom (dlaždice 8)
+          minZoom: 8,               // Zakáže odzoomování pod zoom 8
+          maxZoom: 15,              // Strop přiblížení (max složka v tiles)
           zoomControl: false,
           attributionControl: false
         });
 
-        // 1. Automatické přizpůsobení oknu tak, aby mapa VŽDY VYPLNILA celou obrazovku
-        map.fitBounds(MAP_BOUNDS);
-
         console.log('2. Načítání mapových dlaždic...');
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
           minZoom: 8,
-          maxZoom: 15,              // Maximální fyzický zoom z QGISu
-          bounds: MAP_BOUNDS,
+          maxZoom: 15,
           attribution: 'MZM Interaktivní mapa'
         }).addTo(map);
 
-        // Zapracování ResizeObserveru – zajistí, že při jakékoliv změně okna nebo načtení mapa přepočítá rozměry
-        const resizeObserver = new ResizeObserver(() => {
-          map.invalidateSize();
-        });
-        resizeObserver.observe(document.getElementById('map'));
+        // Vynutí roztažení mapy na 100 % šířky i výšky obrazovky
+        setTimeout(() => { 
+          map.invalidateSize(); 
+        }, 100);
 
         console.log('3. Načítání bodů z Excelu...');
         await loadPointsFromExcel();
@@ -211,8 +203,12 @@
       previousZoom = map.getZoom();
       previousCenter = map.getCenter();
 
-      // Přizoomování zastavíme na bezpečném zoomu 12 (aby nedošlo k přezoomování do černých okrajů)
-      const targetZoom = Math.min(map.getZoom() + 2, 12);
+      const currentZoom = map.getZoom();
+      
+      // ZAJIŠTĚNÍ POUZE PŘIBLÍŽENÍ:
+      // Pokud jsme na nižším zoomu, přizoomuje o 2 stupně (max na 15).
+      // Pokud jsme již na zoomu 14 nebo 15, zůstane na něm a NIKDY neodzoomuje.
+      const targetZoom = Math.min(Math.max(currentZoom, currentZoom + 2), 15);
 
       map.flyTo(coords, targetZoom, { animate: true, duration: 0.6 });
       openModal(point);
@@ -290,6 +286,11 @@
         map.flyTo(previousCenter, previousZoom, { animate: true, duration: 0.6 });
       }
     }
+
+    // Při změně velikosti okna prohlížeče se mapa automaticky rozprostře na novou šířku/výšku
+    window.addEventListener('resize', () => {
+      if (map) map.invalidateSize();
+    });
 
     window.addEventListener('DOMContentLoaded', initMap);
   </script>
