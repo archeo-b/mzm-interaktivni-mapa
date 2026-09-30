@@ -25,8 +25,10 @@
 
     #map {
       position: absolute;
-      top: 0; bottom: 0; left: 0; right: 0;
-      width: 100vw; height: 100vh;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
       z-index: 1;
       background: #020617;
     }
@@ -107,7 +109,8 @@
     let previousZoom = null;
     let previousCenter = null;
 
-    // GEOGRAFICKÉ HRANICE (Zamezí posunu do černých okrajů mimo ČR/oblast)
+    // SOUŘADNICE VAŠÍ HRANICE MAPY
+    // DŮLEŽITÉ: Pokud by se vám stále mapa zdála úzká, můžete lehce rozšířit lat/lng rohy.
     const MAP_BOUNDS = L.latLngBounds(
       L.latLng(48.5, 12.0), // SW roh
       L.latLng(51.1, 19.0)  // NE roh
@@ -118,33 +121,34 @@
         console.log('1. Inicializace mapy Leaflet...');
         
         map = L.map('map', {
-          center: [49.8, 15.5],
-          zoom: 8,                  // Výchozí zoom
           minZoom: 8,               // Zamezí odzoomování pod zoom 8
-          maxZoom: 18,              // Umožní plynulý zoom až do detailu
-          maxBounds: MAP_BOUNDS,    // Nepustí uživatele mimo území
-          maxBoundsViscosity: 1.0,  // Pružný návrat při pokusu o přetažení
+          maxZoom: 15,              // ZASTAVÍ ZOOM NA ÚROVNI 15 (nepustí do prázdna)
+          maxBounds: MAP_BOUNDS,    // Zamezí posunu za okraj mapy
+          maxBoundsViscosity: 1.0,  // Nepustí okraj mapy do zobrazení
           zoomControl: false,
           attributionControl: false
         });
 
+        // 1. Automatické přizpůsobení oknu tak, aby mapa VŽDY VYPLNILA celou obrazovku
+        map.fitBounds(MAP_BOUNDS);
+
         console.log('2. Načítání mapových dlaždic...');
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
-          minZoom: 8,               // Nejnižší složka z QGISu
-          maxZoom: 18,              // Pustí zoom dál
-          maxNativeZoom: 15,        // Poslední fyzická složka (zoom 16+ se zvětší z verze 15)
+          minZoom: 8,
+          maxZoom: 15,              // Maximální fyzický zoom z QGISu
           bounds: MAP_BOUNDS,
           attribution: 'MZM Interaktivní mapa'
         }).addTo(map);
 
+        // Zapracování ResizeObserveru – zajistí, že při jakékoliv změně okna nebo načtení mapa přepočítá rozměry
+        const resizeObserver = new ResizeObserver(() => {
+          map.invalidateSize();
+        });
+        resizeObserver.observe(document.getElementById('map'));
+
         console.log('3. Načítání bodů z Excelu...');
         await loadPointsFromExcel();
         lucide.createIcons();
-
-        // Vyřešení černých pruhů po stranách a roztažení přes celé okno
-        setTimeout(() => { 
-          map.invalidateSize(); 
-        }, 200);
 
       } catch (err) {
         console.error('❌ Chyba při inicializaci aplikace:', err);
@@ -207,8 +211,8 @@
       previousZoom = map.getZoom();
       previousCenter = map.getCenter();
 
-      // Přizoomuje bezpečně (max na zoom 13, aby se nezabloudilo do černa)
-      const targetZoom = Math.min(map.getZoom() + 2, 13);
+      // Přizoomování zastavíme na bezpečném zoomu 12 (aby nedošlo k přezoomování do černých okrajů)
+      const targetZoom = Math.min(map.getZoom() + 2, 12);
 
       map.flyTo(coords, targetZoom, { animate: true, duration: 0.6 });
       openModal(point);
