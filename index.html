@@ -115,13 +115,11 @@
   </div>
 
   <script>
-    // Registrace převodu souřadnic EPSG:3857 -> EPSG:4326 pro proj4
     proj4.defs("EPSG:3857", "+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs");
 
     const CONFIG = {
       excelUrl: 'body.xlsx',
-      minZoom: 8,
-      maxZoom: 14,
+      maxZoom: 14, // Maximální zoom omezen na velikost dlaždic
       tileSize: 512
     };
 
@@ -135,7 +133,6 @@
     let previousZoom = null;
     let previousCenter = null;
 
-    // Dynamické načtení podklad.jpeg a výpočet hranic podle podklad.jgw
     async function loadBoundsFromJgw() {
       const statusEl = document.getElementById('loaderStatus');
       const barEl = document.getElementById('loaderBar');
@@ -143,7 +140,6 @@
       statusEl.innerText = 'Načítání podkladových dat...';
       barEl.style.width = '30%';
 
-      // 1. Načtení rozměrů podklad.jpeg
       const img = await new Promise((resolve, reject) => {
         const image = new Image();
         image.onload = () => resolve(image);
@@ -153,7 +149,6 @@
 
       barEl.style.width = '60%';
 
-      // 2. Načtení souboru podklad.jgw
       const response = await fetch('./podklad.jgw');
       if (!response.ok) throw new Error('Chyba: Soubor podklad.jgw nebyl nalezen.');
       const text = await response.text();
@@ -163,22 +158,51 @@
       const width = img.width;
       const height = img.height;
 
-      // 3. Výpočet rohových souřadnic v EPSG:3857 (v metrech)
       const xMin = C - (A / 2);
       const yMax = F - (E / 2);
       const xMax = xMin + (width * A);
       const yMin = yMax + (height * E);
 
-      // 4. Přepočet přes proj4 do EPSG:4326 (lat/lng)
       const sw = proj4("EPSG:3857", "EPSG:4326", [xMin, yMin]);
       const ne = proj4("EPSG:3857", "EPSG:4326", [xMax, yMax]);
 
       MAP_BOUNDS = L.latLngBounds(
-        L.latLng(sw[1], sw[0]), // Jihozápad
-        L.latLng(ne[1], ne[0])  // Severovýchod
+        L.latLng(sw[1], sw[0]),
+        L.latLng(ne[1], ne[0])
       );
 
       barEl.style.width = '100%';
+    }
+
+    // Výpočet zoomu, který zcela vyplní obrazovku (bez černých okrajů)
+    function calculateCoverZoom() {
+      if (!map || !MAP_BOUNDS) return 8;
+
+      const bounds = MAP_BOUNDS;
+      const mapSize = map.getSize();
+
+      const nw = map.project(bounds.getNorthWest(), 10);
+      const se = map.project(bounds.getSouthEast(), 10);
+      const boundsWidthAtZoom10 = Math.abs(se.x - nw.x);
+      const boundsHeightAtZoom10 = Math.abs(se.y - nw.y);
+
+      const scaleX = mapSize.x / boundsWidthAtZoom10;
+      const scaleY = mapSize.y / boundsHeightAtZoom10;
+
+      // Použijeme MAX místo MIN -> mapa pokryje celou obrazovku i za cenu ořezu
+      const scale = Math.max(scaleX, scaleY);
+      const coverZoom = 10 + Math.log2(scale);
+
+      // Vrátíme bezpečný zoom v rozmezí 8-14
+      return Math.min(Math.max(coverZoom, 8), CONFIG.maxZoom);
+    }
+
+    function fitMapToCover() {
+      if (!map || !MAP_BOUNDS) return;
+      
+      const coverZoom = calculateCoverZoom();
+      map.setMinZoom(coverZoom); // Zamezí odzoomování do černých okrajů
+      map.setView(MAP_BOUNDS.getCenter(), coverZoom, { animate: false });
     }
 
     async function initMap() {
@@ -192,22 +216,20 @@
         map = L.map('map', {
           zoomControl: false,
           attributionControl: false,
-          minZoom: CONFIG.minZoom,
           maxZoom: CONFIG.maxZoom,
           maxBounds: MAP_BOUNDS,
-          maxBoundsViscosity: 0.9,
+          maxBoundsViscosity: 1.0, // Pevné přimknutí k okrajům
           bounceAtZoomLimits: false
         });
 
-        // --- 1. SPODNÍ PODKLAD (podklad.jpeg) ---
+        // --- 1. SPODNÍ PODKLAD ---
         L.imageOverlay('./podklad.jpeg', MAP_BOUNDS, {
           zIndex: 1,
           interactive: false
         }).addTo(map);
 
-        // --- 2. VRSTVA DLAŽDIC 512x512 JPG (zoom 8-14) ---
+        // --- 2. VRSTVA DLAŽDIC ---
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
-          minZoom: CONFIG.minZoom,
           maxZoom: CONFIG.maxZoom,
           tileSize: CONFIG.tileSize,
           zoomOffset: 0,
@@ -217,10 +239,13 @@
           zIndex: 2
         }).addTo(map);
 
-        map.fitBounds(MAP_BOUNDS);
+        // První napasování přesně na velikost obrazovky
+        fitMapToCover();
 
+        // Při změně velikosti okna přepočítáme ideální zoom
         window.addEventListener('resize', () => {
           map.invalidateSize();
+          fitMapToCover();
         });
 
         await loadPointsFromExcel();
@@ -374,5 +399,4 @@
     window.addEventListener('DOMContentLoaded', initMap);
   </script>
 </body>
-  </html>
-  
+</html>
