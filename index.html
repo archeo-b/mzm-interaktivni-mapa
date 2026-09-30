@@ -119,28 +119,38 @@
 
     async function initMap() {
       try {
-        // Vytvoření Leaflet mapy s výchozím pohledem (střed ČR, zoom 8)
+        // 1. Vytvoření mapy s EXPLICITNĚ NASTAVENÝM STŘEDEM A ZOOMEM přímo v konfiguraci
         map = L.map('map', {
+          center: [49.8, 15.5],
+          zoom: 8,
           zoomControl: false,
           attributionControl: false
-        }).setView([49.8, 15.5], 8);
+        });
 
-        // Načtení MBTiles souboru
+        // 2. Načtení MBTiles souboru
         mbtilesLayer = L.tileLayer.mbTiles(CONFIG.mbtilesUrl, {
           minZoom: 0,
           maxZoom: 18,
-          keepBuffer: 6,         // Ponechává sousední dlaždice v paměti RAM pro plynulý posun
+          keepBuffer: 6,
           updateWhenIdle: false,
-          detectRetina: true     // Maximální ostrost na displejích
-        }).addTo(map);
+          detectRetina: true
+        });
 
-        // Po dokončení načtení MBTiles přizpůsobíme pohled na vyexportovaný rozsah
+        // 3. Po načtení MBTiles zkusíme bezpečně přizpůsobit výhled
         mbtilesLayer.on('databaseloaded', function(e) {
           console.log('MBTiles databáze byla úspěšně načtena.');
-          if (mbtilesLayer.getBounds) {
-            map.fitBounds(mbtilesLayer.getBounds());
+          try {
+            const bounds = mbtilesLayer.getBounds();
+            if (bounds && bounds.isValid()) {
+              map.fitBounds(bounds);
+            }
+          } catch (err) {
+            console.warn('Nelze automaticky aplikovat bounds z MBTiles, zůstává výchozí střed.', err);
           }
         });
+
+        // Přidání vrstvy do inicializované mapy
+        mbtilesLayer.addTo(map);
 
         await loadPointsFromExcel();
         lucide.createIcons();
@@ -196,7 +206,6 @@
           iconAnchor: [9, 9]
         });
 
-        // Vložení GPS bodů [lat, lng]
         const marker = L.marker([pt.lat, pt.lng], { icon: customIcon }).addTo(map);
         marker.on('click', () => onPointClick(pt, [pt.lat, pt.lng]));
         markersMap.set(pt.id, marker);
