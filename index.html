@@ -99,7 +99,8 @@
 
   <script>
     const CONFIG = {
-      mbtilesUrl: 'https://github.com/archeo-b/mzm-interaktivni-mapa/releases/download/v1.0.0/mapa.mbtiles',
+      // Použijeme CORS proxy pro stažení souboru z GitHub Releases
+      mbtilesUrl: 'https://corsproxy.io/?' + encodeURIComponent('https://github.com/archeo-b/mzm-interaktivni-mapa/releases/download/v1.0.0/mapa.mbtiles'),
       excelUrl: 'body.xlsx'
     };
 
@@ -116,7 +117,7 @@
       try {
         console.log('1. Inicializace SQLite WASM modulu...');
         
-        // Načtení SQLite modulu před tým, než vytvoříme MBTiles vrstvu
+        // Načtení SQLite modulu před tím, než vytvoříme MBTiles vrstvu
         if (typeof initSqlJs === 'function') {
           window.SQL = await initSqlJs({
             locateFile: file => `lib/${file}`
