@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Interaktivní mapa (MBTiles)</title>
+  <title>Interaktivní mapa</title>
 
   <!-- LOKÁLNÍ KNIHOVNY ZE SLOŽKY lib/ -->
   <link rel="stylesheet" href="lib/leaflet.css">
@@ -11,10 +11,6 @@
   <script src="lib/leaflet.js"></script>
   <script src="lib/lucide.min.js"></script>
   <script src="lib/xlsx.full.min.js"></script>
-
-  <!-- KNIHOVNY PRO MBTILES (SQLite ve WebAssembly) -->
-  <script src="lib/sql-wasm.js"></script>
-  <script src="lib/Leaflet.TileLayer.MBTiles.js"></script>
 
   <style>
     html, body {
@@ -99,12 +95,10 @@
 
   <script>
     const CONFIG = {
-      // Použijeme CORS proxy pro stažení souboru z GitHub Releases
-      mbtilesUrl: 'https://corsproxy.io/?' + encodeURIComponent('https://github.com/archeo-b/mzm-interaktivni-mapa/releases/download/v1.0.0/mapa.mbtiles'),
       excelUrl: 'body.xlsx'
     };
 
-    let map, mbtilesLayer;
+    let map;
     let pointsData = [];
     let markersMap = new Map();
 
@@ -115,19 +109,7 @@
 
     async function initMap() {
       try {
-        console.log('1. Inicializace SQLite WASM modulu...');
-        
-        // Načtení SQLite modulu před tím, než vytvoříme MBTiles vrstvu
-        if (typeof initSqlJs === 'function') {
-          window.SQL = await initSqlJs({
-            locateFile: file => `lib/${file}`
-          });
-          console.log('✅ SQL.js modul připraven:', window.SQL);
-        } else {
-          console.warn('⚠️ initSqlJs není k dispozici, zkouším výchozí objekt SQL');
-        }
-
-        console.log('2. Inicializace mapy Leaflet...');
+        console.log('1. Inicializace mapy Leaflet...');
         map = L.map('map', {
           center: [49.8, 15.5],
           zoom: 8,
@@ -135,35 +117,14 @@
           attributionControl: false
         });
 
-        console.log('3. Načítání souboru MBTiles z URL:', CONFIG.mbtilesUrl);
-        mbtilesLayer = L.tileLayer.mbTiles(CONFIG.mbtilesUrl, {
+        console.log('2. Načítání mapových dlaždic ze složky /tiles...');
+        L.tileLayer('./tiles/{z}/{x}/{y}.png', {
           minZoom: 0,
           maxZoom: 18,
-          keepBuffer: 6,
-          updateWhenIdle: false,
-          detectRetina: true
-        });
+          attribution: 'MZM Interaktivní mapa'
+        }).addTo(map);
 
-        mbtilesLayer.on('databaseloaded', function(e) {
-          console.log('✅ MBTiles databáze byla úspěšně načtena!');
-          try {
-            const bounds = mbtilesLayer.getBounds();
-            if (bounds && bounds.isValid()) {
-              console.log('Ohraničení MBTiles:', bounds);
-              map.fitBounds(bounds);
-            }
-          } catch (err) {
-            console.warn('Nelze automaticky aplikovat bounds z MBTiles:', err);
-          }
-        });
-
-        mbtilesLayer.on('databaseerror', function(e) {
-          console.error('❌ Chyba při načítání MBTiles databáze:', e);
-        });
-
-        mbtilesLayer.addTo(map);
-
-        console.log('4. Načítání bodů z Excelu...');
+        console.log('3. Načítání bodů z Excelu...');
         await loadPointsFromExcel();
         lucide.createIcons();
         setTimeout(() => { map.invalidateSize(); }, 200);
