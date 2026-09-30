@@ -135,7 +135,7 @@
     let previousZoom = null;
     let previousCenter = null;
 
-    // Dynamické načtení podklad.jpg a výpočet hranic podle podklad.jgw
+    // Dynamické načtení podklad.jpeg a výpočet hranic podle podklad.jgw
     async function loadBoundsFromJgw() {
       const statusEl = document.getElementById('loaderStatus');
       const barEl = document.getElementById('loaderBar');
@@ -143,12 +143,12 @@
       statusEl.innerText = 'Načítání podkladových dat...';
       barEl.style.width = '30%';
 
-      // 1. Načtení rozměrů podklad.jpg
+      // 1. Načtení rozměrů podklad.jpeg
       const img = await new Promise((resolve, reject) => {
         const image = new Image();
         image.onload = () => resolve(image);
-        image.onerror = () => reject('Chyba při načítání podklad.jpg');
-        image.src = 'podklad.jpg';
+        image.onerror = () => reject('Chyba při načítání podklad.jpeg');
+        image.src = 'podklad.jpeg';
       });
 
       barEl.style.width = '60%';
@@ -199,8 +199,8 @@
           bounceAtZoomLimits: false
         });
 
-        // --- 1. SPODNÍ PODKLAD (podklad.jpg) ---
-        L.imageOverlay('podklad.jpg', MAP_BOUNDS, {
+        // --- 1. SPODNÍ PODKLAD (podklad.jpeg) ---
+        L.imageOverlay('podklad.jpeg', MAP_BOUNDS, {
           zIndex: 1,
           interactive: false
         }).addTo(map);
