@@ -179,20 +179,11 @@
       });
     }
 
-    // Přepočet souřadnic (GPS nebo S-JTSK) -> Pixely na obrázku
-    function coordsToPixel(latVal, lngVal) {
-      let x = lngVal;
-      let y = latVal;
-
-      // Pokud jsou souřadnice z Excelu ve WGS84 (GPS např. 49.x, 16.x), převedeme je na S-JTSK
-      if (Math.abs(latVal) < 90 && Math.abs(lngVal) < 180) {
-        const sjtsk = proj4("EPSG:4326", "EPSG:5514", [lngVal, latVal]);
-        x = sjtsk[0];
-        y = sjtsk[1];
-      }
-
-      const pixelX = (x - worldFile.originX) / worldFile.pixelSizeX;
-      const pixelY = imageSize.height - ((y - worldFile.originY) / worldFile.pixelSizeY);
+    // Přepočet GPS -> Pixely
+    function gpsToPixel(lat, lng) {
+      const sjtsk = proj4("EPSG:4326", "EPSG:5514", [lng, lat]);
+      const pixelX = (sjtsk[0] - worldFile.originX) / worldFile.pixelSizeX;
+      const pixelY = imageSize.height - ((sjtsk[1] - worldFile.originY) / worldFile.pixelSizeY);
       return [pixelY, pixelX];
     }
 
@@ -268,8 +259,8 @@
             id: index + 1,
             title: row.title || 'Bez názvu',
             category: row.category || '',
-            lat: parseFloat(row.lat || row.y || row.Y),
-            lng: parseFloat(row.lng || row.x || row.X),
+            lat: parseFloat(row.lat),
+            lng: parseFloat(row.lng),
             pages: pages
           };
         });
@@ -288,7 +279,7 @@
       points.forEach(pt => {
         if (isNaN(pt.lat) || isNaN(pt.lng)) return;
 
-        const [pxY, pxX] = coordsToPixel(pt.lat, pt.lng);
+        const [pxY, pxX] = gpsToPixel(pt.lat, pt.lng);
 
         const customIcon = L.divIcon({
           className: 'custom-dot-marker',
