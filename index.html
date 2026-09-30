@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Interaktivní mapa (MBTiles)</title>
+  <title>Interaktivní mapa</title>
 
   <!-- LOKÁLNÍ KNIHOVNY ZE SLOŽKY lib/ -->
   <link rel="stylesheet" href="lib/leaflet.css">
@@ -11,10 +11,6 @@
   <script src="lib/leaflet.js"></script>
   <script src="lib/lucide.min.js"></script>
   <script src="lib/xlsx.full.min.js"></script>
-
-  <!-- KNIHOVNY PRO MBTILES (SQLite ve WebAssembly) -->
-  <script src="lib/sql-wasm.js"></script>
-  <script src="lib/Leaflet.TileLayer.MBTiles.js"></script>
 
   <style>
     html, body {
@@ -99,11 +95,10 @@
 
   <script>
     const CONFIG = {
-      mbtilesUrl: 'mapa.mbtiles',
       excelUrl: 'body.xlsx'
     };
 
-    let map, mbtilesLayer;
+    let map;
     let pointsData = [];
     let markersMap = new Map();
 
@@ -112,42 +107,30 @@
     let previousZoom = null;
     let previousCenter = null;
 
-    // Nastavení cesty k binárnímu souboru sql-wasm.wasm
-    window.SQL = {
-      locateFile: file => `lib/${file}`
-    };
-
     async function initMap() {
       try {
-        // Vytvoření standardní Leaflet mapy
+        console.log('1. Inicializace mapy Leaflet...');
         map = L.map('map', {
+          center: [49.8, 15.5],
+          zoom: 8,
           zoomControl: false,
           attributionControl: false
         });
 
-        // Načtení MBTiles souboru
-        mbtilesLayer = L.tileLayer.mbTiles(CONFIG.mbtilesUrl, {
+        console.log('2. Načítání mapových dlaždic ze složky /tiles...');
+        L.tileLayer('./tiles/{z}/{x}/{y}.png', {
           minZoom: 0,
           maxZoom: 18,
-          keepBuffer: 6,         // Ponechává sousední dlaždice v paměti RAM pro plynulý posun bez plynoucího černání
-          updateWhenIdle: false,
-          detectRetina: true     // Maximální ostrost na displejích
+          attribution: 'MZM Interaktivní mapa'
         }).addTo(map);
 
-        // Po dokončení načtení MBTiles vycentrujeme mapu na vyexportovaný rozsah
-        mbtilesLayer.on('databaseloaded', function(e) {
-          console.log('MBTiles databáze byla úspěšně načtena.');
-          if (mbtilesLayer.getBounds) {
-            map.fitBounds(mbtilesLayer.getBounds());
-          }
-        });
-
+        console.log('3. Načítání bodů z Excelu...');
         await loadPointsFromExcel();
         lucide.createIcons();
         setTimeout(() => { map.invalidateSize(); }, 200);
 
       } catch (err) {
-        console.error('Chyba při inicializaci MBTiles mapy:', err);
+        console.error('❌ Chyba při inicializaci aplikace:', err);
       }
     }
 
@@ -177,8 +160,9 @@
         });
 
         renderPoints(pointsData);
+        console.log(`✅ Úspěšně načteno ${pointsData.length} bodů.`);
       } catch (error) {
-        console.error('Chyba při načítání souboru body.xlsx:', error);
+        console.error('❌ Chyba při načítání souboru body.xlsx:', error);
       }
     }
 
@@ -196,7 +180,6 @@
           iconAnchor: [9, 9]
         });
 
-        // Vložení GPS bodů [lat, lng]
         const marker = L.marker([pt.lat, pt.lng], { icon: customIcon }).addTo(map);
         marker.on('click', () => onPointClick(pt, [pt.lat, pt.lng]));
         markersMap.set(pt.id, marker);
