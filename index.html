@@ -22,6 +22,7 @@
       font-family: system-ui, -apple-system, sans-serif;
     }
 
+    /* Zamezení černým okrajům při posunu a hladší vykreslování */
     #map {
       position: absolute;
       top: 0;
@@ -29,7 +30,18 @@
       width: 100vw;
       height: 100vh;
       z-index: 1;
-      background: #020617;
+      background-color: #020617 !important; /* Stejná barva jako pozadí */
+    }
+
+    .leaflet-container {
+      background-color: #020617 !important;
+    }
+
+    /* Odstranění viditelných mezer/linek mezi dlaždicemi */
+    .leaflet-tile {
+      outline: 1px solid transparent;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
     }
 
     .custom-dot-marker { background: none; border: none; }
@@ -54,11 +66,11 @@
 </head>
 <body class="relative w-full h-full select-none">
 
-  <!-- PRELOADER -->
+  <!-- RYCHLÝ PRELOADER (Trvá do 2 sekund) -->
   <div id="loaderScreen" class="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-6 text-white transition-opacity duration-500">
     <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-    <h2 class="text-xl font-bold mb-2">Přednačítání podkladové mapy...</h2>
-    <p id="loaderStatus" class="text-slate-400 text-sm mb-4">Příprava mřížky dlaždic...</p>
+    <h2 class="text-xl font-bold mb-2">Načítání podkladové mapy...</h2>
+    <p id="loaderStatus" class="text-slate-400 text-sm mb-4">Příprava základu mapy...</p>
     <div class="w-72 bg-slate-800 rounded-full h-3 overflow-hidden p-0.5 border border-slate-700">
       <div id="loaderBar" class="bg-blue-500 h-full rounded-full w-0 transition-all duration-100"></div>
     </div>
@@ -119,6 +131,7 @@
     let previousZoom = null;
     let previousCenter = null;
 
+    // Přesné hranice zájmového území
     const MAP_BOUNDS = L.latLngBounds(
       L.latLng(48.8872, 15.8019),
       L.latLng(50.1340, 18.0990)
@@ -129,22 +142,19 @@
       return Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
     }
 
-    function generateTileUrls() {
+    // Generujeme dlaždice JEN pro zoom 8 až 10 (základní náhled ~ 40 obrázků pro okamžitý start)
+    function generateFastBaseTileUrls() {
       const urls = [];
+      const PRELOAD_MAX_ZOOM = 10; 
 
-      for (let z = CONFIG.minZoom; z <= CONFIG.maxZoom; z++) {
+      for (let z = CONFIG.minZoom; z <= PRELOAD_MAX_ZOOM; z++) {
         const minX = lng2tile(MAP_BOUNDS.getWest(), z);
         const maxX = lng2tile(MAP_BOUNDS.getEast(), z);
         const minY = lat2tile(MAP_BOUNDS.getNorth(), z);
         const maxY = lat2tile(MAP_BOUNDS.getSouth(), z);
 
-        const xStart = Math.min(minX, maxX);
-        const xEnd = Math.max(minX, maxX);
-        const yStart = Math.min(minY, maxY);
-        const yEnd = Math.max(minY, maxY);
-
-        for (let x = xStart; x <= xEnd; x++) {
-          for (let y = yStart; y <= yEnd; y++) {
+        for (let x = Math.min(minX, maxX); x <= Math.max(minX, maxX); x++) {
+          for (let y = Math.min(minY, maxY); y <= Math.max(minY, maxY); y++) {
             urls.push(`./tiles/${z}/${x}/${y}.jpg`);
           }
         }
@@ -152,8 +162,8 @@
       return urls;
     }
 
-    async function preloadAllTiles() {
-      const urls = generateTileUrls();
+    async function preloadBaseTilesOnly() {
+      const urls = generateFastBaseTileUrls();
       const total = urls.length;
       let loaded = 0;
 
@@ -168,7 +178,7 @@
           img.onload = img.onerror = () => {
             loaded++;
             const percent = Math.round((loaded / total) * 100);
-            statusEl.innerText = `Uloženo ${loaded} z ${total} dlaždic (${percent}%)`;
+            statusEl.innerText = `Příprava podkladu... ${percent}%`;
             barEl.style.width = `${percent}%`;
             resolve();
           };
@@ -176,7 +186,7 @@
         });
       };
 
-      const batchSize = 30;
+      const batchSize = 20;
       for (let i = 0; i < urls.length; i += batchSize) {
         const batch = urls.slice(i, i + batchSize).map(url => loadTile(url));
         await Promise.all(batch);
@@ -185,27 +195,35 @@
 
     async function initMap() {
       try {
-        await preloadAllTiles();
+        // Načteme bleskově jen základních ~40 dlaždic
+        await preloadBaseTilesOnly();
 
         const loader = document.getElementById('loaderScreen');
         loader.classList.add('opacity-0');
         setTimeout(() => loader.style.display = 'none', 500);
 
+        // Inicializace mapy s uzamčením na hranice (zabrání černým okrajům)
         map = L.map('map', {
           zoomControl: false,
           attributionControl: false,
           minZoom: CONFIG.minZoom,
-          maxZoom: CONFIG.maxZoom
+          maxZoom: CONFIG.maxZoom,
+          maxBounds: MAP_BOUNDS,            // Uzamkne posun do obdélníku mapy
+          maxBoundsViscosity: 1.0,          // Nepustí uživatele ani o pixel mimo mapu (žádné černé okraje)
+          bounceAtZoomLimits: false
         });
 
+        // Plynulé vykreslování dlaždic bez mřížkování
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
           minZoom: CONFIG.minZoom,
           maxZoom: CONFIG.maxZoom,
           tileSize: CONFIG.tileSize,
-          zoomOffset: 0,
           bounds: MAP_BOUNDS,
           noWrap: true,
-          keepBuffer: 500
+          keepBuffer: 10,                   // Udrží okolní dlaždice v paměti pro plynulý posun
+          updateWhenZooming: false,         // Zapne překreslení až PO dokončení zoomu (konec kostičkování)
+          updateWhenIdle: true,
+          className: 'smooth-tiles'
         }).addTo(map);
 
         map.fitBounds(MAP_BOUNDS);
