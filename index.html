@@ -109,10 +109,10 @@
     let previousZoom = null;
     let previousCenter = null;
 
-    // PŘEPOČÍTANÉ HRANICE Z EPSG:3857 DO WGS84 (EPSG:4326)
+    // HRANICE MAPY Z EPSG:3857 ROZŠÍŘENÉ O REZERVU PRO ŠIROKOÚHLÉ MONITORY
     const MAP_BOUNDS = L.latLngBounds(
-      L.latLng(48.8872, 15.8019), // JZ roh
-      L.latLng(50.1340, 18.0990)  // SV roh
+      L.latLng(48.8, 15.3), // JZ roh (rozšířeno na západ)
+      L.latLng(50.2, 18.6)  // SV roh (rozšířeno na východ)
     );
 
     async function initMap() {
@@ -125,22 +125,32 @@
           minZoom: 8,
           maxZoom: 15,
           maxBounds: MAP_BOUNDS,
-          maxBoundsViscosity: 1.0, // Absolutní zákaz posunu mimo hranice
+          maxBoundsViscosity: 1.0,
           zoomControl: false,
-          attributionControl: false
+          attributionControl: false,
+          // PLYNULOST ANIMACÍ
+          fadeAnimation: true,
+          zoomAnimation: true,
+          markerZoomAnimation: true
         });
 
-        console.log('2. Načítání mapových dlaždic...');
+        console.log('2. Načítání mapových dlaždic s bufferem pro plynulost...');
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
           minZoom: 8,
           maxZoom: 15,
           bounds: MAP_BOUNDS,
-          keepBuffer: 0,
-          attribution: 'MZM Interaktivní mapa'
+          attribution: 'MZM Interaktivní mapa',
+          
+          // KLÍČOVÁ NASTAVENÍ PRO VYHLAZENÍ A PLYNULOST BEZ KOSTIČKOVÁNÍ:
+          keepBuffer: 4,              // Načte do paměti i 4 dlaždice za okraj obrazovky (posun je pak plynulý)
+          updateWhenZooming: false,   // Netrhá obrazem během animace přiblížení
+          updateWhenIdle: true,       // Načte nové dlaždice až po dokončení pohybu
+          tileSize: 256
         }).addTo(map);
 
-        ensureFullCoverage();
-        window.addEventListener('resize', ensureFullCoverage);
+        // ROZTÁHNUTÍ MAPY PŘES CELOU OBRAZOVKU (ODSTRANĚNÍ ČERNÝCH PRUHŮ)
+        fitMapToScreen();
+        window.addEventListener('resize', fitMapToScreen);
 
         console.log('3. Načítání bodů z Excelu...');
         await loadPointsFromExcel();
@@ -151,19 +161,11 @@
       }
     }
 
-    function ensureFullCoverage() {
+    function fitMapToScreen() {
       if (!map) return;
       map.invalidateSize();
-
-      const boundsZoom = map.getBoundsZoom(MAP_BOUNDS, false);
-      const safeMinZoom = Math.max(8, boundsZoom);
-
-      map.setMinZoom(safeMinZoom);
-
-      if (map.getZoom() < safeMinZoom) {
-        map.setZoom(safeMinZoom);
-      }
-      map.panInsideBounds(MAP_BOUNDS, { animate: false });
+      // Přizpůsobí zoom a výřez tak, aby mapa vyplnila celý displej bez černých okrajů
+      map.fitBounds(MAP_BOUNDS, { animate: false });
     }
 
     async function loadPointsFromExcel() {
@@ -223,7 +225,6 @@
       previousCenter = map.getCenter();
 
       const currentZoom = map.getZoom();
-      // POUZE PŘIBLÍŽÍ nebo zůstane na max zoomu (nikdy neodzoomuje)
       const targetZoom = Math.max(currentZoom, 13);
 
       map.flyTo(coords, Math.min(targetZoom, 15), { animate: true, duration: 0.6 });
