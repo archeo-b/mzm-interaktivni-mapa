@@ -109,58 +109,38 @@
     let previousZoom = null;
     let previousCenter = null;
 
-    // SOUŘADNICE HRANIC VAŠÍ VYGENEROVANÉ MAPY
-    const MAP_BOUNDS = L.latLngBounds(
-      L.latLng(48.5, 12.0), // JZ roh
-      L.latLng(51.1, 19.0)  // SV roh
-    );
-
     async function initMap() {
       try {
         console.log('1. Inicializace mapy Leaflet...');
         
+        // Zde pevně definujeme střed a zoom – předchází chybě v konzoli
         map = L.map('map', {
+          center: [49.5, 16.8],    // Střed zájmové oblasti
+          zoom: 8,                 // Základní výchozí přiblížení
+          minZoom: 8,              // Zakáže odzoomování pod zoom 8
+          maxZoom: 15,             // Maximální zoom z vaší složky tiles
           zoomControl: false,
-          attributionControl: false,
-          maxZoom: 15,
-          maxBoundsViscosity: 1.0 // Pevně drží okraj a nepustí uživatele do černého
+          attributionControl: false
         });
 
+        console.log('2. Načítání mapových dlaždic...');
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
           minZoom: 8,
           maxZoom: 15,
-          bounds: MAP_BOUNDS,
           attribution: 'MZM Interaktivní mapa'
         }).addTo(map);
 
-        // Vynutit vyplnění celé obrazovky s oříznutím přesahujících okrajů
-        adjustMapCoverage();
+        // Zajistí přepočet velikosti při změně velikosti okna
+        window.addEventListener('resize', () => {
+          if (map) map.invalidateSize();
+        });
 
-        console.log('2. Načítání bodů z Excelu...');
+        console.log('3. Načítání bodů z Excelu...');
         await loadPointsFromExcel();
         lucide.createIcons();
 
       } catch (err) {
         console.error('❌ Chyba při inicializaci aplikace:', err);
-      }
-    }
-
-    // Funkce zajistí, že mapa VŽDY kompletně vyplní obrazovku (pomocí 'cover' výpočtu)
-    function adjustMapCoverage() {
-      if (!map) return;
-
-      map.invalidateSize();
-
-      // Výpočet vhodného minZoom podle aktuálního rozlišení monitoru
-      const boundsZoom = map.getBoundsZoom(MAP_BOUNDS, false);
-      const computedMinZoom = Math.max(8, boundsZoom);
-
-      map.setMinZoom(computedMinZoom);
-      map.setMaxBounds(MAP_BOUNDS);
-
-      // Pokud jsme mimo nebo při načtení, vycentrujeme přesně na střed oblasti
-      if (map.getZoom() < computedMinZoom) {
-        map.setView(MAP_BOUNDS.getCenter(), computedMinZoom);
       }
     }
 
@@ -222,9 +202,9 @@
 
       const currentZoom = map.getZoom();
 
-      // PŘÍSNÁ LOGIKA PŘIBLÍŽENÍ:
+      // LOGIKA ZMĚNY ZOOMU:
       // Pokud je zoom menší než 13, přiblížíme na 13.
-      // Pokud už jsme na zoomu 13, 14 nebo 15, PONECHÁME stávající zoom (nikdy neodzoomujeme!).
+      // Pokud už jsme na zoomu 13, 14 nebo 15, stávající zoom zachováme (NEODZOOMUJE).
       const targetZoom = Math.max(currentZoom, 13);
 
       map.flyTo(coords, Math.min(targetZoom, 15), { animate: true, duration: 0.6 });
@@ -303,9 +283,6 @@
         map.flyTo(previousCenter, previousZoom, { animate: true, duration: 0.6 });
       }
     }
-
-    // Automatický přepočet krytí obrazovky při změně velikosti okna
-    window.addEventListener('resize', adjustMapCoverage);
 
     window.addEventListener('DOMContentLoaded', initMap);
   </script>
