@@ -133,9 +133,8 @@
 
   <!-- APLIKAČNÍ LOGIKA -->
   <script>
-    // 1. REGISTRACE SOUŘADNICOVÝCH SYSTÉMŮ (S-JTSK a Web Mercator)
+    // 1. REGISTRACE KŘOVÁKOVA ZOBRAZENÍ (S-JTSK)
     proj4.defs("EPSG:5514", "+proj=krovak +lat_0=49.5 +lon_0=24.83333333333333 +alpha=30.28813975277778 +k=0.9999 +x_0=0 +y_0=0 +ellps=bessel +towgs84=570.8,85.7,462.8,4.998,1.587,5.261,3.56 +units=m +no_defs");
-    proj4.defs("EPSG:3857", "+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs");
 
     const CONFIG = {
       imageUrl: 'mapa.jpg',
@@ -157,7 +156,7 @@
     let previousZoom = null;
     let previousCenter = null;
 
-    // 2. NAČTENÍ SOUBORU JGW
+    // 2. NAČTENÍ SOUBORU JGW A ROZMĚRŮ OBRÁZKU
     async function loadWorldFile() {
       const response = await fetch(CONFIG.jgwUrl);
       const text = await response.text();
@@ -180,24 +179,24 @@
       });
     }
 
-    // Přepočet souřadnic -> Pixely na obrázku
-    function coordsToPixel(x, y) {
-      let targetX = x;
-      let targetY = y;
+    // Přepočet souřadnic (GPS nebo S-JTSK) -> Pixely na obrázku
+    function coordsToPixel(latVal, lngVal) {
+      let x = lngVal;
+      let y = latVal;
 
-      // Pokud jsou vstupní souřadnice z Excelu ve WGS84 (GPS), převedeme je na S-JTSK
-      if (x > 0 && x < 90 && y > 0 && y < 90) {
-        const sjtsk = proj4("EPSG:4326", "EPSG:5514", [y, x]);
-        targetX = sjtsk[0];
-        targetY = sjtsk[1];
+      // Pokud jsou souřadnice z Excelu ve WGS84 (GPS např. 49.x, 16.x), převedeme je na S-JTSK
+      if (Math.abs(latVal) < 90 && Math.abs(lngVal) < 180) {
+        const sjtsk = proj4("EPSG:4326", "EPSG:5514", [lngVal, latVal]);
+        x = sjtsk[0];
+        y = sjtsk[1];
       }
 
-      const pixelX = (targetX - worldFile.originX) / worldFile.pixelSizeX;
-      const pixelY = imageSize.height - ((targetY - worldFile.originY) / worldFile.pixelSizeY);
+      const pixelX = (x - worldFile.originX) / worldFile.pixelSizeX;
+      const pixelY = imageSize.height - ((y - worldFile.originY) / worldFile.pixelSizeY);
       return [pixelY, pixelX];
     }
 
-    // Minimální zoom bez okrajů
+    // Minimální zoom bez okrajů při výchozím zobrazení
     function calculateMinZoom() {
       const zoomX = Math.log2(window.innerWidth / imageSize.width);
       const zoomY = Math.log2(window.innerHeight / imageSize.height);
@@ -269,8 +268,8 @@
             id: index + 1,
             title: row.title || 'Bez názvu',
             category: row.category || '',
-            lat: parseFloat(row.lat || row.x),
-            lng: parseFloat(row.lng || row.y),
+            lat: parseFloat(row.lat || row.y || row.Y),
+            lng: parseFloat(row.lng || row.x || row.X),
             pages: pages
           };
         });
