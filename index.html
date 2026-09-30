@@ -10,6 +10,7 @@
   <script src="lib/leaflet.js"></script>
   <script src="lib/lucide.min.js"></script>
   <script src="lib/xlsx.full.min.js"></script>
+  <script src="lib/proj4.js"></script>
 
   <style>
     html, body {
@@ -69,7 +70,7 @@
   <div id="loaderScreen" class="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-6 text-white transition-opacity duration-500">
     <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
     <h2 class="text-xl font-bold mb-2">Načítání podkladové mapy...</h2>
-    <p id="loaderStatus" class="text-slate-400 text-sm mb-4">Příprava podkladu...</p>
+    <p id="loaderStatus" class="text-slate-400 text-sm mb-4">Výpočet geografických hranic...</p>
     <div class="w-72 bg-slate-800 rounded-full h-3 overflow-hidden p-0.5 border border-slate-700">
       <div id="loaderBar" class="bg-blue-500 h-full rounded-full w-0 transition-all duration-100"></div>
     </div>
@@ -114,6 +115,9 @@
   </div>
 
   <script>
+    // Registrace převodu souřadnic EPSG:3857 -> EPSG:4326 pro proj4
+    proj4.defs("EPSG:3857", "+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs");
+
     const CONFIG = {
       excelUrl: 'body.xlsx',
       minZoom: 8,
@@ -122,6 +126,7 @@
     };
 
     let map;
+    let MAP_BOUNDS = null;
     let pointsData = [];
     let markersMap = new Map();
 
@@ -130,30 +135,55 @@
     let previousZoom = null;
     let previousCenter = null;
 
-    // Přepočítaný rozsah z EPSG:3857 do EPSG:4326
-    const MAP_BOUNDS = L.latLngBounds(
-      L.latLng(48.892429, 15.801899),
-      L.latLng(50.138402, 18.099042)
-    );
-
-    async function preloadBaseImage() {
+    // Dynamické načtení podklad.jpg a výpočet hranic podle podklad.jgw
+    async function loadBoundsFromJgw() {
       const statusEl = document.getElementById('loaderStatus');
       const barEl = document.getElementById('loaderBar');
 
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = img.onerror = () => {
-          statusEl.innerText = 'Podklad připraven';
-          barEl.style.width = '100%';
-          resolve();
-        };
-        img.src = 'podklad.jpg';
+      statusEl.innerText = 'Načítání podkladových dat...';
+      barEl.style.width = '30%';
+
+      // 1. Načtení rozměrů podklad.jpg
+      const img = await new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject('Chyba při načítání podklad.jpg');
+        image.src = 'podklad.jpg';
       });
+
+      barEl.style.width = '60%';
+
+      // 2. Načtení souboru podklad.jgw
+      const response = await fetch('podklad.jgw');
+      if (!response.ok) throw new Error('Chyba při načítání podklad.jgw');
+      const text = await response.text();
+      const lines = text.trim().split(/\r?\n/).map(Number);
+
+      const [A, D, B, E, C, F] = lines;
+      const width = img.width;
+      const height = img.height;
+
+      // 3. Výpočet rohových souřadnic v EPSG:3857 (v metrech)
+      const xMin = C - (A / 2);
+      const yMax = F - (E / 2);
+      const xMax = xMin + (width * A);
+      const yMin = yMax + (height * E);
+
+      // 4. Přepočet přes proj4 do EPSG:4326 (lat/lng)
+      const sw = proj4("EPSG:3857", "EPSG:4326", [xMin, yMin]);
+      const ne = proj4("EPSG:3857", "EPSG:4326", [xMax, yMax]);
+
+      MAP_BOUNDS = L.latLngBounds(
+        L.latLng(sw[1], sw[0]), // Jihozápad
+        L.latLng(ne[1], ne[0])  // Severovýchod
+      );
+
+      barEl.style.width = '100%';
     }
 
     async function initMap() {
       try {
-        await preloadBaseImage();
+        await loadBoundsFromJgw();
 
         const loader = document.getElementById('loaderScreen');
         loader.classList.add('opacity-0');
@@ -256,7 +286,6 @@
       previousZoom = map.getZoom();
       previousCenter = map.getCenter();
 
-      // Cílový zoom při kliku (přiblížení na zoom 13)
       const targetZoom = Math.min(13, CONFIG.maxZoom);
 
       map.flyTo(coords, targetZoom, {
