@@ -107,27 +107,44 @@
     let previousZoom = null;
     let previousCenter = null;
 
+    // GEOGRAFICKÉ HRANICE (Zamezí posunu do černých okrajů mimo ČR/oblast)
+    const MAP_BOUNDS = L.latLngBounds(
+      L.latLng(48.5, 12.0), // SW roh
+      L.latLng(51.1, 19.0)  // NE roh
+    );
+
     async function initMap() {
       try {
         console.log('1. Inicializace mapy Leaflet...');
+        
         map = L.map('map', {
           center: [49.8, 15.5],
-          zoom: 8,
+          zoom: 8,                  // Výchozí zoom
+          minZoom: 8,               // Zamezí odzoomování pod zoom 8
+          maxZoom: 18,              // Umožní plynulý zoom až do detailu
+          maxBounds: MAP_BOUNDS,    // Nepustí uživatele mimo území
+          maxBoundsViscosity: 1.0,  // Pružný návrat při pokusu o přetažení
           zoomControl: false,
           attributionControl: false
         });
 
-        console.log('2. Načítání mapových dlaždic ze složky /tiles s příponou .jpg...');
+        console.log('2. Načítání mapových dlaždic...');
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
-          minZoom: 0,
-          maxZoom: 18,
+          minZoom: 8,               // Nejnižší složka z QGISu
+          maxZoom: 18,              // Pustí zoom dál
+          maxNativeZoom: 15,        // Poslední fyzická složka (zoom 16+ se zvětší z verze 15)
+          bounds: MAP_BOUNDS,
           attribution: 'MZM Interaktivní mapa'
         }).addTo(map);
 
         console.log('3. Načítání bodů z Excelu...');
         await loadPointsFromExcel();
         lucide.createIcons();
-        setTimeout(() => { map.invalidateSize(); }, 200);
+
+        // Vyřešení černých pruhů po stranách a roztažení přes celé okno
+        setTimeout(() => { 
+          map.invalidateSize(); 
+        }, 200);
 
       } catch (err) {
         console.error('❌ Chyba při inicializaci aplikace:', err);
@@ -189,7 +206,11 @@
     function onPointClick(point, coords) {
       previousZoom = map.getZoom();
       previousCenter = map.getCenter();
-      map.flyTo(coords, map.getZoom() + 1, { animate: true, duration: 0.6 });
+
+      // Přizoomuje bezpečně (max na zoom 13, aby se nezabloudilo do černa)
+      const targetZoom = Math.min(map.getZoom() + 2, 13);
+
+      map.flyTo(coords, targetZoom, { animate: true, duration: 0.6 });
       openModal(point);
     }
 
