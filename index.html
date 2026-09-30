@@ -135,7 +135,7 @@
     let previousZoom = null;
     let previousCenter = null;
 
-    // Dynamické načtení podklad.jpg a výpočet hranic podle podklad.jgw
+    // Dynamické načtení podklad.jpeg a výpočet hranic podle podklad.jgw
     async function loadBoundsFromJgw() {
       const statusEl = document.getElementById('loaderStatus');
       const barEl = document.getElementById('loaderBar');
@@ -143,19 +143,19 @@
       statusEl.innerText = 'Načítání podkladových dat...';
       barEl.style.width = '30%';
 
-      // 1. Načtení rozměrů podklad.jpg
+      // 1. Načtení rozměrů podklad.jpeg
       const img = await new Promise((resolve, reject) => {
         const image = new Image();
         image.onload = () => resolve(image);
-        image.onerror = () => reject('Chyba při načítání podklad.jpg');
-        image.src = 'podklad.jpg';
+        image.onerror = () => reject('Chyba: Soubor podklad.jpeg nebyl nalezen.');
+        image.src = './podklad.jpeg';
       });
 
       barEl.style.width = '60%';
 
       // 2. Načtení souboru podklad.jgw
-      const response = await fetch('podklad.jgw');
-      if (!response.ok) throw new Error('Chyba při načítání podklad.jgw');
+      const response = await fetch('./podklad.jgw');
+      if (!response.ok) throw new Error('Chyba: Soubor podklad.jgw nebyl nalezen.');
       const text = await response.text();
       const lines = text.trim().split(/\r?\n/).map(Number);
 
@@ -199,8 +199,8 @@
           bounceAtZoomLimits: false
         });
 
-        // --- 1. SPODNÍ PODKLAD (podklad.jpg) ---
-        L.imageOverlay('podklad.jpg', MAP_BOUNDS, {
+        // --- 1. SPODNÍ PODKLAD (podklad.jpeg) ---
+        L.imageOverlay('./podklad.jpeg', MAP_BOUNDS, {
           zIndex: 1,
           interactive: false
         }).addTo(map);
@@ -210,7 +210,7 @@
           minZoom: CONFIG.minZoom,
           maxZoom: CONFIG.maxZoom,
           tileSize: CONFIG.tileSize,
-          zoomOffset: 0, // Opraveno: odkazuje přímo na existující složky 8-14
+          zoomOffset: 0,
           bounds: MAP_BOUNDS,
           noWrap: true,
           keepBuffer: 6,
@@ -228,6 +228,8 @@
 
       } catch (err) {
         console.error('Chyba při inicializaci aplikace:', err);
+        const statusEl = document.getElementById('loaderStatus');
+        if (statusEl) statusEl.innerText = err.message || err;
       }
     }
 
