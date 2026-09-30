@@ -22,7 +22,6 @@
       font-family: system-ui, -apple-system, sans-serif;
     }
 
-    /* Zamezení černým okrajům při posunu a hladší vykreslování */
     #map {
       position: absolute;
       top: 0;
@@ -30,18 +29,29 @@
       width: 100vw;
       height: 100vh;
       z-index: 1;
-      background-color: #020617 !important; /* Stejná barva jako pozadí */
+      background-color: #020617 !important;
     }
 
     .leaflet-container {
       background-color: #020617 !important;
     }
 
-    /* Odstranění viditelných mezer/linek mezi dlaždicemi */
+    /* ODSTRANĚNÍ SVÁRŮ / MEZER MEZI DLAŽDICEMI A ZACHOVÁNÍ OSTROSTI */
     .leaflet-tile {
-      outline: 1px solid transparent;
-      image-rendering: -webkit-optimize-contrast;
+      /* Zajišťuje 100% ostrost dat z QGISu bez rozmazávání */
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
       image-rendering: crisp-edges;
+
+      /* Mírný přesah 0.5px eliminuje bílé/černé sváry mezi dlaždicemi */
+      margin: -0.5px !important;
+      padding: 0.5px !important;
+    }
+
+    /* Plynulý přechod při načítání nových dlaždic přes pozadí */
+    .leaflet-tile-loaded {
+      opacity: 1 !important;
+      transition: opacity 0.2s ease-in-out;
     }
 
     .custom-dot-marker { background: none; border: none; }
@@ -66,11 +76,11 @@
 </head>
 <body class="relative w-full h-full select-none">
 
-  <!-- RYCHLÝ PRELOADER (Trvá do 2 sekund) -->
+  <!-- RYCHLÝ PRELOADER (Trvá zlomky sekundy) -->
   <div id="loaderScreen" class="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-6 text-white transition-opacity duration-500">
     <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
     <h2 class="text-xl font-bold mb-2">Načítání podkladové mapy...</h2>
-    <p id="loaderStatus" class="text-slate-400 text-sm mb-4">Příprava základu mapy...</p>
+    <p id="loaderStatus" class="text-slate-400 text-sm mb-4">Načítání základní vrstvy pozadí...</p>
     <div class="w-72 bg-slate-800 rounded-full h-3 overflow-hidden p-0.5 border border-slate-700">
       <div id="loaderBar" class="bg-blue-500 h-full rounded-full w-0 transition-all duration-100"></div>
     </div>
@@ -131,7 +141,7 @@
     let previousZoom = null;
     let previousCenter = null;
 
-    // Přesné hranice zájmového území
+    // Hranice zájmového území
     const MAP_BOUNDS = L.latLngBounds(
       L.latLng(48.8872, 15.8019),
       L.latLng(50.1340, 18.0990)
@@ -142,28 +152,26 @@
       return Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
     }
 
-    // Generujeme dlaždice JEN pro zoom 8 až 10 (základní náhled ~ 40 obrázků pro okamžitý start)
-    function generateFastBaseTileUrls() {
+    // Přednačteme JEN zcela nejnižší zoom (Zoom 8 = jen pár dlaždic)
+    function generateBackgroundTileUrls() {
       const urls = [];
-      const PRELOAD_MAX_ZOOM = 10; 
+      const z = CONFIG.minZoom; // Jen Zoom 8
 
-      for (let z = CONFIG.minZoom; z <= PRELOAD_MAX_ZOOM; z++) {
-        const minX = lng2tile(MAP_BOUNDS.getWest(), z);
-        const maxX = lng2tile(MAP_BOUNDS.getEast(), z);
-        const minY = lat2tile(MAP_BOUNDS.getNorth(), z);
-        const maxY = lat2tile(MAP_BOUNDS.getSouth(), z);
+      const minX = lng2tile(MAP_BOUNDS.getWest(), z);
+      const maxX = lng2tile(MAP_BOUNDS.getEast(), z);
+      const minY = lat2tile(MAP_BOUNDS.getNorth(), z);
+      const maxY = lat2tile(MAP_BOUNDS.getSouth(), z);
 
-        for (let x = Math.min(minX, maxX); x <= Math.max(minX, maxX); x++) {
-          for (let y = Math.min(minY, maxY); y <= Math.max(minY, maxY); y++) {
-            urls.push(`./tiles/${z}/${x}/${y}.jpg`);
-          }
+      for (let x = Math.min(minX, maxX); x <= Math.max(minX, maxX); x++) {
+        for (let y = Math.min(minY, maxY); y <= Math.max(minY, maxY); y++) {
+          urls.push(`./tiles/${z}/${x}/${y}.jpg`);
         }
       }
       return urls;
     }
 
-    async function preloadBaseTilesOnly() {
-      const urls = generateFastBaseTileUrls();
+    async function preloadBackgroundTiles() {
+      const urls = generateBackgroundTileUrls();
       const total = urls.length;
       let loaded = 0;
 
@@ -178,7 +186,7 @@
           img.onload = img.onerror = () => {
             loaded++;
             const percent = Math.round((loaded / total) * 100);
-            statusEl.innerText = `Příprava podkladu... ${percent}%`;
+            statusEl.innerText = `Načítání pozadí... ${percent}%`;
             barEl.style.width = `${percent}%`;
             resolve();
           };
@@ -186,44 +194,55 @@
         });
       };
 
-      const batchSize = 20;
-      for (let i = 0; i < urls.length; i += batchSize) {
-        const batch = urls.slice(i, i + batchSize).map(url => loadTile(url));
-        await Promise.all(batch);
-      }
+      const batch = urls.map(url => loadTile(url));
+      await Promise.all(batch);
     }
 
     async function initMap() {
       try {
-        // Načteme bleskově jen základních ~40 dlaždic
-        await preloadBaseTilesOnly();
+        await preloadBackgroundTiles();
 
         const loader = document.getElementById('loaderScreen');
         loader.classList.add('opacity-0');
         setTimeout(() => loader.style.display = 'none', 500);
 
-        // Inicializace mapy s uzamčením na hranice (zabrání černým okrajům)
+        // Zajištění, že maxBounds nevytváří prázdné černé okraje
+        const paddedBounds = MAP_BOUNDS.pad(0.05);
+
         map = L.map('map', {
           zoomControl: false,
           attributionControl: false,
           minZoom: CONFIG.minZoom,
           maxZoom: CONFIG.maxZoom,
-          maxBounds: MAP_BOUNDS,            // Uzamkne posun do obdélníku mapy
-          maxBoundsViscosity: 1.0,          // Nepustí uživatele ani o pixel mimo mapu (žádné černé okraje)
+          maxBounds: paddedBounds,
+          maxBoundsViscosity: 0.8, // Jemný odraz na hranici bez prázdných okrajů
           bounceAtZoomLimits: false
         });
 
-        // Plynulé vykreslování dlaždic bez mřížkování
+        // --- VRSTVA 1: STÁLÉ POZADÍ (Konec černých děr při načítání) ---
+        // Tato vrstva vždy zůstává na Zoom 8 a roztahuje se pod detailní vrstvou.
+        L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
+          minZoom: CONFIG.minZoom,
+          maxZoom: CONFIG.maxZoom,
+          maxNativeZoom: CONFIG.minZoom, // Vždy použije dlaždice ze zoomu 8 a roztáhne je!
+          tileSize: CONFIG.tileSize,
+          bounds: MAP_BOUNDS,
+          noWrap: true,
+          zIndex: 1
+        }).addTo(map);
+
+        // --- VRSTVA 2: DETAILNÍ OSTRÉ DLAŽDICE ---
+        // Dynamicky načítá ostré dlaždice vyšších zoomů podle toho, kde se uživatel nachází.
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
           minZoom: CONFIG.minZoom,
           maxZoom: CONFIG.maxZoom,
           tileSize: CONFIG.tileSize,
           bounds: MAP_BOUNDS,
           noWrap: true,
-          keepBuffer: 10,                   // Udrží okolní dlaždice v paměti pro plynulý posun
-          updateWhenZooming: false,         // Zapne překreslení až PO dokončení zoomu (konec kostičkování)
-          updateWhenIdle: true,
-          className: 'smooth-tiles'
+          keepBuffer: 8,                  // Ponechává okolní dlaždice v paměti
+          updateWhenZooming: true,        // Zrušeno zpoždění = plná plynulost
+          updateWhenIdle: false,
+          zIndex: 2
         }).addTo(map);
 
         map.fitBounds(MAP_BOUNDS);
