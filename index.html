@@ -109,46 +109,47 @@
     let previousZoom = null;
     let previousCenter = null;
 
-    // HRANICE MAPY Z EPSG:3857 ROZŠÍŘENÉ O REZERVU PRO ŠIROKOÚHLÉ MONITORY
+    // Přesné hranice vaší mapy
     const MAP_BOUNDS = L.latLngBounds(
-      L.latLng(48.8, 15.3), // JZ roh (rozšířeno na západ)
-      L.latLng(50.2, 18.6)  // SV roh (rozšířeno na východ)
+      L.latLng(48.8, 15.3), // JZ roh
+      L.latLng(50.2, 18.6)  // SV roh
     );
 
     async function initMap() {
       try {
-        console.log('1. Inicializace mapy Leaflet...');
+        console.log('1. Inicializace plynulé mapy Leaflet...');
         
         map = L.map('map', {
           center: MAP_BOUNDS.getCenter(),
           zoom: 8,
-          minZoom: 8,
+          minZoom: 7.5,
           maxZoom: 15,
-          maxBounds: MAP_BOUNDS,
-          maxBoundsViscosity: 1.0,
           zoomControl: false,
           attributionControl: false,
-          // PLYNULOST ANIMACÍ
-          fadeAnimation: true,
+          
+          // KLÍČ K PLYNULOSTI A ODSTRANĚNÍ PRUHŮ:
+          zoomSnap: 0,            // Povolí neceločíselné zoomy (např. 8.24) -> vymaže černé okraje na jakémkoliv monitoru!
+          zoomDelta: 0.5,         // Plynulejší skoky při přiblížení
+          wheelPxPerZoomLevel: 120, // Plynulé zoomování kolečkem myši
+          fadeAnimation: true,    // Zapne plynulé prolínání
           zoomAnimation: true,
           markerZoomAnimation: true
         });
 
-        console.log('2. Načítání mapových dlaždic s bufferem pro plynulost...');
+        console.log('2. Načítání mapových dlaždic...');
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
           minZoom: 8,
           maxZoom: 15,
-          bounds: MAP_BOUNDS,
           attribution: 'MZM Interaktivní mapa',
           
-          // KLÍČOVÁ NASTAVENÍ PRO VYHLAZENÍ A PLYNULOST BEZ KOSTIČKOVÁNÍ:
-          keepBuffer: 4,              // Načte do paměti i 4 dlaždice za okraj obrazovky (posun je pak plynulý)
-          updateWhenZooming: false,   // Netrhá obrazem během animace přiblížení
-          updateWhenIdle: true,       // Načte nové dlaždice až po dokončení pohybu
+          // KLÍČ K ODSTRANĚNÍ ŠACHOVNICE A DLAŽDICOVÁNÍ:
+          keepBuffer: 8,            // Držet v paměti až 8 dlaždic kolem -> okamžité posouvání bez načítání
+          updateWhenZooming: true,  // Ponechá starou mapu roztaženou pod novou, dokud se nenačte nová
+          updateWhenIdle: false,    // Načítat plynule ihned během pohybu
           tileSize: 256
         }).addTo(map);
 
-        // ROZTÁHNUTÍ MAPY PŘES CELOU OBRAZOVKU (ODSTRANĚNÍ ČERNÝCH PRUHŮ)
+        // Vždy roztáhne mapu tak, aby stoprocentně vyplnila obrazovku
         fitMapToScreen();
         window.addEventListener('resize', fitMapToScreen);
 
@@ -164,8 +165,8 @@
     function fitMapToScreen() {
       if (!map) return;
       map.invalidateSize();
-      // Přizpůsobí zoom a výřez tak, aby mapa vyplnila celý displej bez černých okrajů
-      map.fitBounds(MAP_BOUNDS, { animate: false });
+      // fitBounds v kombinaci s zoomSnap: 0 přesně roztáhne mapu na rozměr okna prohlížeče
+      map.fitBounds(MAP_BOUNDS, { padding: [0, 0], animate: false });
     }
 
     async function loadPointsFromExcel() {
