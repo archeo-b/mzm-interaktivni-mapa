@@ -119,22 +119,22 @@
 
     async function initMap() {
       try {
-        // Vytvoření standardní Leaflet mapy
+        // Vytvoření Leaflet mapy s výchozím pohledem (střed ČR, zoom 8)
         map = L.map('map', {
           zoomControl: false,
           attributionControl: false
-        });
+        }).setView([49.8, 15.5], 8);
 
         // Načtení MBTiles souboru
         mbtilesLayer = L.tileLayer.mbTiles(CONFIG.mbtilesUrl, {
           minZoom: 0,
           maxZoom: 18,
-          keepBuffer: 6,         // Ponechává sousední dlaždice v paměti RAM pro plynulý posun bez plynoucího černání
+          keepBuffer: 6,         // Ponechává sousední dlaždice v paměti RAM pro plynulý posun
           updateWhenIdle: false,
           detectRetina: true     // Maximální ostrost na displejích
         }).addTo(map);
 
-        // Po dokončení načtení MBTiles vycentrujeme mapu na vyexportovaný rozsah
+        // Po dokončení načtení MBTiles přizpůsobíme pohled na vyexportovaný rozsah
         mbtilesLayer.on('databaseloaded', function(e) {
           console.log('MBTiles databáze byla úspěšně načtena.');
           if (mbtilesLayer.getBounds) {
