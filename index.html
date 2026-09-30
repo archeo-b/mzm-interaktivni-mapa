@@ -112,14 +112,21 @@
     let previousZoom = null;
     let previousCenter = null;
 
-    // Nastavení cesty k binárnímu souboru sql-wasm.wasm
-    window.SQL = {
-      locateFile: file => `lib/${file}`
-    };
-
     async function initMap() {
       try {
-        console.log('1. Inicializace mapy Leaflet...');
+        console.log('1. Inicializace SQLite WASM modulu...');
+        
+        // Načtení SQLite modulu před tím, než vytvoříme MBTiles vrstvu
+        if (typeof initSqlJs === 'function') {
+          window.SQL = await initSqlJs({
+            locateFile: file => `lib/${file}`
+          });
+          console.log('✅ SQL.js modul připraven:', window.SQL);
+        } else {
+          console.warn('⚠️ initSqlJs není k dispozici, zkouším výchozí objekt SQL');
+        }
+
+        console.log('2. Inicializace mapy Leaflet...');
         map = L.map('map', {
           center: [49.8, 15.5],
           zoom: 8,
@@ -127,7 +134,7 @@
           attributionControl: false
         });
 
-        console.log('2. Načítání souboru MBTiles z URL:', CONFIG.mbtilesUrl);
+        console.log('3. Načítání souboru MBTiles z URL:', CONFIG.mbtilesUrl);
         mbtilesLayer = L.tileLayer.mbTiles(CONFIG.mbtilesUrl, {
           minZoom: 0,
           maxZoom: 18,
@@ -155,7 +162,7 @@
 
         mbtilesLayer.addTo(map);
 
-        console.log('3. Načítání bodů z Excelu...');
+        console.log('4. Načítání bodů z Excelu...');
         await loadPointsFromExcel();
         lucide.createIcons();
         setTimeout(() => { map.invalidateSize(); }, 200);
