@@ -25,8 +25,10 @@
 
     #map {
       position: absolute;
-      top: 0; bottom: 0; left: 0; right: 0;
-      width: 100vw; height: 100vh;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
       z-index: 1;
       background: #020617;
     }
@@ -107,31 +109,61 @@
     let previousZoom = null;
     let previousCenter = null;
 
+    // PŘEPOČÍTANÉ HRANICE Z EPSG:3857 DO WGS84 (EPSG:4326)
+    const MAP_BOUNDS = L.latLngBounds(
+      L.latLng(48.8872, 15.8019), // JZ roh
+      L.latLng(50.1340, 18.0990)  // SV roh
+    );
+
     async function initMap() {
       try {
         console.log('1. Inicializace mapy Leaflet...');
+        
         map = L.map('map', {
-          center: [49.8, 15.5],
+          center: MAP_BOUNDS.getCenter(),
           zoom: 8,
+          minZoom: 8,
+          maxZoom: 15,
+          maxBounds: MAP_BOUNDS,
+          maxBoundsViscosity: 1.0, // Absolutní zákaz posunu mimo hranice
           zoomControl: false,
           attributionControl: false
         });
 
-        console.log('2. Načítání mapových dlaždic ze složky /tiles...');
-        L.tileLayer('./tiles/{z}/{x}/{y}.png', {
-          minZoom: 0,
-          maxZoom: 18,
+        console.log('2. Načítání mapových dlaždic...');
+        L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
+          minZoom: 8,
+          maxZoom: 15,
+          bounds: MAP_BOUNDS,
+          keepBuffer: 0,
           attribution: 'MZM Interaktivní mapa'
         }).addTo(map);
+
+        ensureFullCoverage();
+        window.addEventListener('resize', ensureFullCoverage);
 
         console.log('3. Načítání bodů z Excelu...');
         await loadPointsFromExcel();
         lucide.createIcons();
-        setTimeout(() => { map.invalidateSize(); }, 200);
 
       } catch (err) {
         console.error('❌ Chyba při inicializaci aplikace:', err);
       }
+    }
+
+    function ensureFullCoverage() {
+      if (!map) return;
+      map.invalidateSize();
+
+      const boundsZoom = map.getBoundsZoom(MAP_BOUNDS, false);
+      const safeMinZoom = Math.max(8, boundsZoom);
+
+      map.setMinZoom(safeMinZoom);
+
+      if (map.getZoom() < safeMinZoom) {
+        map.setZoom(safeMinZoom);
+      }
+      map.panInsideBounds(MAP_BOUNDS, { animate: false });
     }
 
     async function loadPointsFromExcel() {
@@ -189,7 +221,12 @@
     function onPointClick(point, coords) {
       previousZoom = map.getZoom();
       previousCenter = map.getCenter();
-      map.flyTo(coords, map.getZoom() + 1, { animate: true, duration: 0.6 });
+
+      const currentZoom = map.getZoom();
+      // POUZE PŘIBLÍŽÍ nebo zůstane na max zoomu (nikdy neodzoomuje)
+      const targetZoom = Math.max(currentZoom, 13);
+
+      map.flyTo(coords, Math.min(targetZoom, 15), { animate: true, duration: 0.6 });
       openModal(point);
     }
 
