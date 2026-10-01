@@ -31,20 +31,15 @@
       height: 100vh;
       z-index: 1;
       background-color: #020617 !important;
-      background-size: cover;
-      background-position: center;
-      background-repeat: no-repeat;
     }
 
     .leaflet-container {
-      background: transparent !important;
+      background-color: #020617 !important;
     }
 
-    /* Čisté podání dlaždic bez mezer a svárů */
+    /* Ošetření mřížky bez narušení ostrosti */
     .leaflet-tile {
       outline: 1px solid transparent;
-      image-rendering: -webkit-optimize-contrast;
-      image-rendering: crisp-edges;
     }
 
     .custom-dot-marker { background: none; border: none; }
@@ -123,7 +118,7 @@
     const CONFIG = {
       excelUrl: 'body.xlsx',
       maxZoom: 14,
-      tileSize: 512
+      tileSize: 256 // Standardní velikost dlaždic
     };
 
     let map;
@@ -149,9 +144,6 @@
         image.onerror = () => reject('Chyba: Soubor podklad.jpeg nebyl nalezen.');
         image.src = './podklad.jpeg';
       });
-
-      // Nastavení statického podkladu do pozadí mapového divu
-      document.getElementById('map').style.backgroundImage = 'url(./podklad.jpeg)';
 
       barEl.style.width = '60%';
 
@@ -225,14 +217,22 @@
           bounceAtZoomLimits: false
         });
 
-        // --- VRSTVA DLAŽDIC NAD STATICKÝM CSS POZADÍM ---
+        // 1. STATICKÝ PODKLAD (Vylepšuje vykreslení pod dlaždicemi)
+        L.imageOverlay('./podklad.jpeg', MAP_BOUNDS, {
+          pane: 'tilePane',
+          zIndex: 1,
+          interactive: false
+        }).addTo(map);
+
+        // 2. DLAŽDICOVÁ VRSTVA (1:1 zobrazení bez deformací)
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
           maxZoom: CONFIG.maxZoom,
           tileSize: CONFIG.tileSize,
-          zoomOffset: -1,
           bounds: MAP_BOUNDS,
           noWrap: true,
-          keepBuffer: 6
+          keepBuffer: 6,
+          pane: 'tilePane',
+          zIndex: 2
         }).addTo(map);
 
         fitMapToCover();
