@@ -119,7 +119,7 @@
 
     const CONFIG = {
       excelUrl: 'body.xlsx',
-      maxZoom: 14, // Maximální zoom omezen na velikost dlaždic
+      maxZoom: 14,
       tileSize: 512
     };
 
@@ -174,7 +174,6 @@
       barEl.style.width = '100%';
     }
 
-    // Výpočet zoomu, který zcela vyplní obrazovku (bez černých okrajů)
     function calculateCoverZoom() {
       if (!map || !MAP_BOUNDS) return 8;
 
@@ -189,11 +188,9 @@
       const scaleX = mapSize.x / boundsWidthAtZoom10;
       const scaleY = mapSize.y / boundsHeightAtZoom10;
 
-      // Použijeme MAX místo MIN -> mapa pokryje celou obrazovku i za cenu ořezu
       const scale = Math.max(scaleX, scaleY);
       const coverZoom = 10 + Math.log2(scale);
 
-      // Vrátíme bezpečný zoom v rozmezí 8-14
       return Math.min(Math.max(coverZoom, 8), CONFIG.maxZoom);
     }
 
@@ -201,7 +198,7 @@
       if (!map || !MAP_BOUNDS) return;
       
       const coverZoom = calculateCoverZoom();
-      map.setMinZoom(coverZoom); // Zamezí odzoomování do černých okrajů
+      map.setMinZoom(coverZoom);
       map.setView(MAP_BOUNDS.getCenter(), coverZoom, { animate: false });
     }
 
@@ -218,7 +215,7 @@
           attributionControl: false,
           maxZoom: CONFIG.maxZoom,
           maxBounds: MAP_BOUNDS,
-          maxBoundsViscosity: 1.0, // Pevné přimknutí k okrajům
+          maxBoundsViscosity: 1.0,
           bounceAtZoomLimits: false
         });
 
@@ -228,21 +225,19 @@
           interactive: false
         }).addTo(map);
 
-        // --- 2. VRSTVA DLAŽDIC ---
+        // --- 2. VRSTVA DLAŽDIC (512px dlaždice vyžadují zoomOffset: -1) ---
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
           maxZoom: CONFIG.maxZoom,
           tileSize: CONFIG.tileSize,
-          zoomOffset: 0,
+          zoomOffset: -1, // Klíčová oprava pro dlaždice 512px!
           bounds: MAP_BOUNDS,
           noWrap: true,
           keepBuffer: 6,
           zIndex: 2
         }).addTo(map);
 
-        // První napasování přesně na velikost obrazovky
         fitMapToCover();
 
-        // Při změně velikosti okna přepočítáme ideální zoom
         window.addEventListener('resize', () => {
           map.invalidateSize();
           fitMapToCover();
