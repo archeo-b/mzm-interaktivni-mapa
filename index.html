@@ -31,10 +31,13 @@
       height: 100vh;
       z-index: 1;
       background-color: #020617 !important;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
     }
 
     .leaflet-container {
-      background-color: #020617 !important;
+      background: transparent !important;
     }
 
     /* Čisté podání dlaždic bez mezer a svárů */
@@ -147,6 +150,9 @@
         image.src = './podklad.jpeg';
       });
 
+      // Nastavení statického podkladu do pozadí mapového divu
+      document.getElementById('map').style.backgroundImage = 'url(./podklad.jpeg)';
+
       barEl.style.width = '60%';
 
       const response = await fetch('./podklad.jgw');
@@ -219,21 +225,14 @@
           bounceAtZoomLimits: false
         });
 
-        // --- 1. SPODNÍ PODKLAD ---
-        L.imageOverlay('./podklad.jpeg', MAP_BOUNDS, {
-          zIndex: 1,
-          interactive: false
-        }).addTo(map);
-
-        // --- 2. VRSTVA DLAŽDIC (512px dlaždice vyžadují zoomOffset: -1) ---
+        // --- VRSTVA DLAŽDIC NAD STATICKÝM CSS POZADÍM ---
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
           maxZoom: CONFIG.maxZoom,
           tileSize: CONFIG.tileSize,
-          zoomOffset: -1, // Klíčová oprava pro dlaždice 512px!
+          zoomOffset: -1,
           bounds: MAP_BOUNDS,
           noWrap: true,
-          keepBuffer: 6,
-          zIndex: 2
+          keepBuffer: 6
         }).addTo(map);
 
         fitMapToCover();
