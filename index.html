@@ -37,7 +37,7 @@
       background-color: #020617 !important;
     }
 
-    /* Čisté podání dlaždic bez rozostřování a bez spár */
+    /* Ošetření dlaždic pro čisté vykreslování bez spár */
     .leaflet-tile {
       image-rendering: auto !important;
       outline: 1px solid transparent;
@@ -50,31 +50,86 @@
       transform: translate3d(0, 0, 0);
     }
 
-    .custom-dot-marker { background: none; border: none; }
-    .dot-element {
-      width: 18px; height: 18px;
-      background-color: #2563eb;
-      border: 2.5px solid #ffffff;
-      border-radius: 50%;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-      cursor: pointer;
-      transition: transform 0.15s ease-in-out, background-color 0.15s ease;
-    }
-    .dot-element:hover {
-      transform: scale(1.3);
-      background-color: #3b82f6;
+    /* --- STYLOVÁNÍ A ANIMACE BODŮ --- */
+    .custom-dot-marker {
+      background: none;
+      border: none;
     }
 
+    .dot-wrapper {
+      position: relative;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .dot-element {
+      width: 16px;
+      height: 16px;
+      background-color: #3b82f6;
+      border: 2.5px solid #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+      position: relative;
+      z-index: 2;
+    }
+
+    /* Hover efekty bodu */
+    .dot-wrapper:hover .dot-element {
+      transform: scale(1.35);
+      background-color: #60a5fa;
+      box-shadow: 0 0 15px rgba(96, 165, 250, 0.8), 0 2px 10px rgba(0,0,0,0.5);
+    }
+
+    /* Aktivní vybraný bod (zvýrazněný + pulzující vlnění) */
+    .dot-wrapper.active .dot-element {
+      transform: scale(1.4);
+      background-color: #f59e0b;
+      border-color: #ffffff;
+      box-shadow: 0 0 20px rgba(245, 158, 11, 0.9), 0 2px 12px rgba(0,0,0,0.6);
+    }
+
+    .dot-pulse {
+      position: absolute;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background-color: rgba(245, 158, 11, 0.4);
+      opacity: 0;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .dot-wrapper.active .dot-pulse {
+      animation: radar-ripple 2s infinite ease-out;
+    }
+
+    @keyframes radar-ripple {
+      0% {
+        transform: scale(0.3);
+        opacity: 0.9;
+      }
+      100% {
+        transform: scale(2.2);
+        opacity: 0;
+      }
+    }
+
+    /* --- SCROLLBAR --- */
     .custom-scroll::-webkit-scrollbar { width: 6px; }
     .custom-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 8px; }
     .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 8px; }
 
-    /* Vylepšené plynulé přechody pro Modal okno */
-    #modalOverlay {
-      transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), backdrop-filter 0.35s ease;
+    /* --- ANIMACE BOČNÍHO PANELU --- */
+    #sidePanelOverlay {
+      transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    #modalCard {
-      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    #sidePanelCard {
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     }
   </style>
 </head>
@@ -92,22 +147,25 @@
 
   <div id="map"></div>
 
-  <!-- MODAL OKÉNKO S VYLEPŠENOU ANIMACÍ -->
-  <div id="modalOverlay" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/40 backdrop-blur-md opacity-0">
+  <!-- BOČNÍ INFORMAČNÍ PANEL (SIDE SHEET) -->
+  <div id="sidePanelOverlay" class="hidden fixed inset-0 z-50 flex justify-end p-0 sm:p-4 bg-slate-950/20 backdrop-blur-[2px] opacity-0 pointer-events-auto">
+    <!-- Kliknutí mimo panel ho zavře -->
     <div class="absolute inset-0" onclick="closeModal()"></div>
 
-    <div id="modalCard" class="relative z-10 w-full max-w-xl bg-slate-900/95 border border-slate-700/80 rounded-3xl shadow-2xl text-white overflow-hidden transform scale-95 translate-y-8 opacity-0 flex flex-col max-h-[85vh]">
+    <div id="sidePanelCard" class="relative z-10 w-full sm:w-[480px] h-full sm:h-auto bg-slate-900/95 border-l sm:border border-slate-700/80 sm:rounded-3xl shadow-2xl text-white overflow-hidden transform translate-x-full opacity-0 flex flex-col max-h-full sm:max-h-[90vh] my-auto">
       
-      <div class="flex items-start justify-between p-5 border-b border-slate-800/80 bg-slate-900/50">
+      <!-- HLAVIČKA -->
+      <div class="flex items-start justify-between p-5 border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md">
         <div>
           <h2 id="modalTitle" class="text-xl sm:text-2xl font-bold text-white tracking-tight mb-1">Název lokality</h2>
           <span id="modalCategory" class="inline-block px-2.5 py-0.5 text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-full">Kategorie</span>
         </div>
         <button onclick="closeModal()" class="p-2 bg-slate-800/60 hover:bg-slate-700 text-slate-300 hover:text-white rounded-full transition border border-slate-700/50 flex-shrink-0 ml-4">
-          <i data-lucide="x" class="w-6 h-6"></i>
+          <i data-lucide="x" class="w-5 h-5"></i>
         </button>
       </div>
 
+      <!-- OBSAH -->
       <div class="p-5 overflow-y-auto custom-scroll flex-1 space-y-4">
         <div id="modalText" class="text-slate-300 text-sm sm:text-base leading-relaxed"></div>
         <div id="modalImageContainer" class="rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 hidden">
@@ -115,7 +173,8 @@
         </div>
       </div>
 
-      <div id="modalFooter" class="flex items-center justify-between p-4 border-t border-slate-800/80 bg-slate-900/80">
+      <!-- PATIČKA -->
+      <div id="modalFooter" class="flex items-center justify-between p-4 border-t border-slate-800/80 bg-slate-900/80 backdrop-blur-md">
         <button id="prevPageBtn" onclick="changePage(-1)" class="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-medium transition disabled:opacity-30 disabled:cursor-not-allowed">
           <i data-lucide="chevron-left" class="w-4 h-4"></i> Předchozí
         </button>
@@ -143,6 +202,7 @@
     let MAP_BOUNDS = null;
     let pointsData = [];
     let markersMap = new Map();
+    let activeMarkerId = null;
 
     let currentPoint = null;
     let currentPageIndex = 0;
@@ -239,7 +299,7 @@
           zoomAnimation: true
         });
 
-        // 1. STATICKÝ PODKLAD (Trvale pod dlaždicemi)
+        // 1. STATICKÝ PODKLAD
         L.imageOverlay('./podklad.jpeg', RAW_BOUNDS, {
           pane: 'tilePane',
           zIndex: 1,
@@ -317,9 +377,14 @@
 
         const customIcon = L.divIcon({
           className: 'custom-dot-marker',
-          html: `<div class="dot-element" title="${pt.title}"></div>`,
-          iconSize: [18, 18],
-          iconAnchor: [9, 9]
+          html: `
+            <div class="dot-wrapper" id="marker-wrapper-${pt.id}">
+              <div class="dot-pulse"></div>
+              <div class="dot-element" title="${pt.title}"></div>
+            </div>
+          `,
+          iconSize: [20, 20],
+          iconAnchor: [10, 10]
         });
 
         const marker = L.marker([pt.lat, pt.lng], { icon: customIcon }).addTo(map);
@@ -328,18 +393,47 @@
       });
     }
 
+    function setActiveMarker(pointId) {
+      // Odebrání aktivní třídy z předchozího bodu
+      if (activeMarkerId !== null) {
+        const prevEl = document.getElementById(`marker-wrapper-${activeMarkerId}`);
+        if (prevEl) prevEl.classList.remove('active');
+      }
+
+      // Nastavení aktivní třídy novému bodu
+      activeMarkerId = pointId;
+      if (activeMarkerId !== null) {
+        const newEl = document.getElementById(`marker-wrapper-${activeMarkerId}`);
+        if (newEl) newEl.classList.add('active');
+      }
+    }
+
     function onPointClick(point, coords) {
       previousZoom = map.getZoom();
       previousCenter = map.getCenter();
 
       // Pokud uživatel přiblížil více než na level 13, ponechá se jeho vyšší zoom
-      const targetZoom = Math.max(previousZoom, 13);
+      const targetZoom = Math.min(Math.max(previousZoom, 13), CONFIG.maxZoom);
 
-      map.flyTo(coords, Math.min(targetZoom, CONFIG.maxZoom), {
+      // Výpočet offsetu: Na širších obrazovkách (desktop) posuneme bod na cca 30 % šířky obrazovky zleva
+      const latLng = L.latLng(coords[0], coords[1]);
+      const isMobile = window.innerWidth < 640;
+      
+      let targetCenter = latLng;
+
+      if (!isMobile) {
+        const pointPx = map.project(latLng, targetZoom);
+        // Posuneme střed mapy doprava o 20 % šířky obrazovky -> bod se ocitne vlevo na 30 %
+        const offsetPx = L.point(window.innerWidth * 0.20, 0);
+        targetCenter = map.unproject(pointPx.add(offsetPx), targetZoom);
+      }
+
+      map.flyTo(targetCenter, targetZoom, {
         animate: true,
-        duration: 0.7
+        duration: 0.8
       });
 
+      setActiveMarker(point.id);
       openModal(point);
     }
 
@@ -350,16 +444,15 @@
       document.getElementById('modalCategory').innerText = point.category || 'Detail';
       updateModalPage();
 
-      const overlay = document.getElementById('modalOverlay');
-      const card = document.getElementById('modalCard');
+      const overlay = document.getElementById('sidePanelOverlay');
+      const card = document.getElementById('sidePanelCard');
       
       overlay.classList.remove('hidden');
       
-      // Plynulé vysunutí modal okna s efektem vzletu
       requestAnimationFrame(() => {
         overlay.classList.remove('opacity-0');
-        card.classList.remove('scale-95', 'translate-y-8', 'opacity-0');
-        card.classList.add('scale-100', 'translate-y-0', 'opacity-100');
+        card.classList.remove('translate-x-full', 'opacity-0');
+        card.classList.add('translate-x-0', 'opacity-100');
       });
     }
 
@@ -407,19 +500,23 @@
     }
 
     function closeModal() {
-      const overlay = document.getElementById('modalOverlay');
-      const card = document.getElementById('modalCard');
+      const overlay = document.getElementById('sidePanelOverlay');
+      const card = document.getElementById('sidePanelCard');
 
       overlay.classList.add('opacity-0');
-      card.classList.remove('scale-100', 'translate-y-0', 'opacity-100');
-      card.classList.add('scale-95', 'translate-y-8', 'opacity-0');
+      card.classList.remove('translate-x-0', 'opacity-100');
+      card.classList.add('translate-x-full', 'opacity-0');
 
       setTimeout(() => {
         overlay.classList.add('hidden');
-      }, 350);
+      }, 400);
 
+      // Zrušení zvýraznění bodu
+      setActiveMarker(null);
+
+      // Navrácení původního pohledu na mapu
       if (previousCenter !== null && previousZoom !== null) {
-        map.flyTo(previousCenter, previousZoom, { animate: true, duration: 0.7 });
+        map.flyTo(previousCenter, previousZoom, { animate: true, duration: 0.8 });
       }
     }
 
