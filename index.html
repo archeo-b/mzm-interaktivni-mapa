@@ -1,80 +1,396 @@
 <!DOCTYPE html>
-<html lang="cs">
+<html lang="cs" class="h-full w-full m-0 p-0 overflow-hidden">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mapa</title>
-  
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Interaktivní mapa</title>
+
+  <link rel="stylesheet" href="lib/leaflet.css">
+  <script src="lib/tailwind.js"></script>
+  <script src="lib/leaflet.js"></script>
+  <script src="lib/lucide.min.js"></script>
+  <script src="lib/xlsx.full.min.js"></script>
+  <script src="lib/proj4.js"></script>
 
   <style>
     html, body {
-      margin: 0;
-      padding: 0;
       width: 100%;
       height: 100%;
-      background-color: #f8f9fa;
+      margin: 0;
+      padding: 0;
       overflow: hidden;
+      background-color: #020617;
+      font-family: system-ui, -apple-system, sans-serif;
     }
 
     #map {
-      width: 100%;
-      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+      background-color: #020617 !important;
     }
 
-    /* Vynucení ostrého vykreslení dlaždic a prevence zasekávání */
+    .leaflet-container {
+      background-color: #020617 !important;
+    }
+
+    /* Ošetření mřížky bez narušení ostrosti */
     .leaflet-tile {
-      image-rendering: -webkit-optimize-contrast !important;
-      image-rendering: crisp-edges !important;
-      image-rendering: pixelated !important;
       outline: 1px solid transparent;
-      backface-visibility: hidden;
     }
 
-    .leaflet-tile-container {
-      will-change: transform;
-      transform: translate3d(0, 0, 0);
+    .custom-dot-marker { background: none; border: none; }
+    .dot-element {
+      width: 18px; height: 18px;
+      background-color: #2563eb;
+      border: 2.5px solid #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+      cursor: pointer;
+      transition: transform 0.15s ease-in-out, background-color 0.15s ease;
     }
+    .dot-element:hover {
+      transform: scale(1.3);
+      background-color: #3b82f6;
+    }
+
+    .custom-scroll::-webkit-scrollbar { width: 6px; }
+    .custom-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 8px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 8px; }
   </style>
 </head>
-<body>
+<body class="relative w-full h-full select-none">
+
+  <!-- PRELOADER -->
+  <div id="loaderScreen" class="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-6 text-white transition-opacity duration-500">
+    <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+    <h2 class="text-xl font-bold mb-2">Načítání podkladové mapy...</h2>
+    <p id="loaderStatus" class="text-slate-400 text-sm mb-4">Výpočet geografických hranic...</p>
+    <div class="w-72 bg-slate-800 rounded-full h-3 overflow-hidden p-0.5 border border-slate-700">
+      <div id="loaderBar" class="bg-blue-500 h-full rounded-full w-0 transition-all duration-100"></div>
+    </div>
+  </div>
 
   <div id="map"></div>
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- MODAL OKÉNKO -->
+  <div id="modalOverlay" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/30 backdrop-blur-[2px] transition-all duration-300 opacity-0">
+    <div class="absolute inset-0" onclick="closeModal()"></div>
+
+    <div id="modalCard" class="relative z-10 w-full max-w-xl bg-slate-900/95 border border-slate-700/80 rounded-3xl shadow-2xl text-white overflow-hidden transform scale-95 transition-all duration-300 flex flex-col max-h-[85vh]">
+      
+      <div class="flex items-start justify-between p-5 border-b border-slate-800/80 bg-slate-900/50">
+        <div>
+          <h2 id="modalTitle" class="text-xl sm:text-2xl font-bold text-white tracking-tight mb-1">Název lokality</h2>
+          <span id="modalCategory" class="inline-block px-2.5 py-0.5 text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-full">Kategorie</span>
+        </div>
+        <button onclick="closeModal()" class="p-2 bg-slate-800/60 hover:bg-slate-700 text-slate-300 hover:text-white rounded-full transition border border-slate-700/50 flex-shrink-0 ml-4">
+          <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+      </div>
+
+      <div class="p-5 overflow-y-auto custom-scroll flex-1 space-y-4">
+        <div id="modalText" class="text-slate-300 text-sm sm:text-base leading-relaxed"></div>
+        <div id="modalImageContainer" class="rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 hidden">
+          <img id="modalImage" src="" alt="" class="w-full h-56 sm:h-64 object-cover">
+        </div>
+      </div>
+
+      <div id="modalFooter" class="flex items-center justify-between p-4 border-t border-slate-800/80 bg-slate-900/80">
+        <button id="prevPageBtn" onclick="changePage(-1)" class="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-medium transition disabled:opacity-30 disabled:cursor-not-allowed">
+          <i data-lucide="chevron-left" class="w-4 h-4"></i> Předchozí
+        </button>
+        <span id="pageIndicator" class="text-xs font-medium text-slate-400 tracking-wider uppercase">Strana 1 z 1</span>
+        <button id="nextPageBtn" onclick="changePage(1)" class="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-medium transition disabled:opacity-30 disabled:cursor-not-allowed">
+          Další <i data-lucide="chevron-right" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+    </div>
+  </div>
 
   <script>
-    // 1. Souřadnice hranic přepočítané z vašeho EPSG:3857 rozsahu
-    const southWest = L.latLng(48.9830, 16.0263);
-    const northEast = L.latLng(49.8055, 17.8194);
-    const MAP_BOUNDS = L.latLngBounds(southWest, northEast);
+    proj4.defs("EPSG:3857", "+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs");
 
-    // 2. Inicializace mapy
-    const map = L.map('map', {
-      maxBounds: MAP_BOUNDS,
-      maxBoundsViscosity: 1.0,
-      minZoom: 7,
-      maxZoom: 15,
-      zoomControl: true,
-      attributionControl: false,
-      fadeAnimation: false,       // Vypne prolínání pro vyšší plynulost
-      zoomAnimation: true
-    }).fitBounds(MAP_BOUNDS);
+    const CONFIG = {
+      excelUrl: 'body.xlsx',
+      maxZoom: 14,
+      tileSize: 256 // Standardní velikost dlaždic
+    };
 
-    // 3. Vrstva dlaždic
-    L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
-      minZoom: 7,
-      maxZoom: 15,
-      tileSize: 256,
-      bounds: MAP_BOUNDS,
-      noWrap: true,
-      keepBuffer: 8,             // Ponechá v paměti více okolních dlaždic proti zasekávání
-      updateWhenIdle: false,     // Načítá plynule už během posunu
-      updateWhenZooming: false
-    }).addTo(map);
+    let map;
+    let MAP_BOUNDS = null;
+    let pointsData = [];
+    let markersMap = new Map();
+
+    let currentPoint = null;
+    let currentPageIndex = 0;
+    let previousZoom = null;
+    let previousCenter = null;
+
+    async function loadBoundsFromJgw() {
+      const statusEl = document.getElementById('loaderStatus');
+      const barEl = document.getElementById('loaderBar');
+
+      statusEl.innerText = 'Načítání podkladových dat...';
+      barEl.style.width = '30%';
+
+      const img = await new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject('Chyba: Soubor podklad.jpeg nebyl nalezen.');
+        image.src = './podklad.jpeg';
+      });
+
+      barEl.style.width = '60%';
+
+      const response = await fetch('./podklad.jgw');
+      if (!response.ok) throw new Error('Chyba: Soubor podklad.jgw nebyl nalezen.');
+      const text = await response.text();
+      const lines = text.trim().split(/\r?\n/).map(Number);
+
+      const [A, D, B, E, C, F] = lines;
+      const width = img.width;
+      const height = img.height;
+
+      const xMin = C - (A / 2);
+      const yMax = F - (E / 2);
+      const xMax = xMin + (width * A);
+      const yMin = yMax + (height * E);
+
+      const sw = proj4("EPSG:3857", "EPSG:4326", [xMin, yMin]);
+      const ne = proj4("EPSG:3857", "EPSG:4326", [xMax, yMax]);
+
+      MAP_BOUNDS = L.latLngBounds(
+        L.latLng(sw[1], sw[0]),
+        L.latLng(ne[1], ne[0])
+      );
+
+      barEl.style.width = '100%';
+    }
+
+    function calculateCoverZoom() {
+      if (!map || !MAP_BOUNDS) return 8;
+
+      const bounds = MAP_BOUNDS;
+      const mapSize = map.getSize();
+
+      const nw = map.project(bounds.getNorthWest(), 10);
+      const se = map.project(bounds.getSouthEast(), 10);
+      const boundsWidthAtZoom10 = Math.abs(se.x - nw.x);
+      const boundsHeightAtZoom10 = Math.abs(se.y - nw.y);
+
+      const scaleX = mapSize.x / boundsWidthAtZoom10;
+      const scaleY = mapSize.y / boundsHeightAtZoom10;
+
+      const scale = Math.max(scaleX, scaleY);
+      const coverZoom = 10 + Math.log2(scale);
+
+      return Math.min(Math.max(coverZoom, 8), CONFIG.maxZoom);
+    }
+
+    function fitMapToCover() {
+      if (!map || !MAP_BOUNDS) return;
+      
+      const coverZoom = calculateCoverZoom();
+      map.setMinZoom(coverZoom);
+      map.setView(MAP_BOUNDS.getCenter(), coverZoom, { animate: false });
+    }
+
+    async function initMap() {
+      try {
+        await loadBoundsFromJgw();
+
+        const loader = document.getElementById('loaderScreen');
+        loader.classList.add('opacity-0');
+        setTimeout(() => loader.style.display = 'none', 500);
+
+        map = L.map('map', {
+          zoomControl: false,
+          attributionControl: false,
+          maxZoom: CONFIG.maxZoom,
+          maxBounds: MAP_BOUNDS,
+          maxBoundsViscosity: 1.0,
+          bounceAtZoomLimits: false
+        });
+
+        // 1. STATICKÝ PODKLAD (Vylepšuje vykreslení pod dlaždicemi)
+        L.imageOverlay('./podklad.jpeg', MAP_BOUNDS, {
+          pane: 'tilePane',
+          zIndex: 1,
+          interactive: false
+        }).addTo(map);
+
+        // 2. DLAŽDICOVÁ VRSTVA (1:1 zobrazení bez deformací)
+        L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
+          maxZoom: CONFIG.maxZoom,
+          tileSize: CONFIG.tileSize,
+          bounds: MAP_BOUNDS,
+          noWrap: true,
+          keepBuffer: 6,
+          pane: 'tilePane',
+          zIndex: 2
+        }).addTo(map);
+
+        fitMapToCover();
+
+        window.addEventListener('resize', () => {
+          map.invalidateSize();
+          fitMapToCover();
+        });
+
+        await loadPointsFromExcel();
+        lucide.createIcons();
+
+      } catch (err) {
+        console.error('Chyba při inicializaci aplikace:', err);
+        const statusEl = document.getElementById('loaderStatus');
+        if (statusEl) statusEl.innerText = err.message || err;
+      }
+    }
+
+    async function loadPointsFromExcel() {
+      try {
+        const response = await fetch(CONFIG.excelUrl);
+        const arrayBuffer = await response.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rawData = XLSX.utils.sheet_to_json(worksheet);
+
+        pointsData = rawData.map((row, index) => {
+          const pages = [];
+          for (let i = 1; i <= 5; i++) {
+            if (row[`text${i}`] || row[`image${i}`]) {
+              pages.push({ text: row[`text${i}`] || '', image: row[`image${i}`] || '' });
+            }
+          }
+          return {
+            id: index + 1,
+            title: row.title || 'Bez názvu',
+            category: row.category || '',
+            lat: parseFloat(row.lat),
+            lng: parseFloat(row.lng),
+            pages: pages
+          };
+        });
+
+        renderPoints(pointsData);
+      } catch (error) {
+        console.error('Chyba při načítání souboru body.xlsx:', error);
+      }
+    }
+
+    function renderPoints(points) {
+      markersMap.forEach(marker => map.removeLayer(marker));
+      markersMap.clear();
+
+      points.forEach(pt => {
+        if (isNaN(pt.lat) || isNaN(pt.lng)) return;
+
+        const customIcon = L.divIcon({
+          className: 'custom-dot-marker',
+          html: `<div class="dot-element" title="${pt.title}"></div>`,
+          iconSize: [18, 18],
+          iconAnchor: [9, 9]
+        });
+
+        const marker = L.marker([pt.lat, pt.lng], { icon: customIcon }).addTo(map);
+        marker.on('click', () => onPointClick(pt, [pt.lat, pt.lng]));
+        markersMap.set(pt.id, marker);
+      });
+    }
+
+    function onPointClick(point, coords) {
+      previousZoom = map.getZoom();
+      previousCenter = map.getCenter();
+
+      const targetZoom = Math.min(13, CONFIG.maxZoom);
+
+      map.flyTo(coords, targetZoom, {
+        animate: true,
+        duration: 0.7
+      });
+
+      openModal(point);
+    }
+
+    function openModal(point) {
+      currentPoint = point;
+      currentPageIndex = 0;
+      document.getElementById('modalTitle').innerText = point.title;
+      document.getElementById('modalCategory').innerText = point.category || 'Detail';
+      updateModalPage();
+
+      const overlay = document.getElementById('modalOverlay');
+      const card = document.getElementById('modalCard');
+      overlay.classList.remove('hidden');
+      setTimeout(() => {
+        overlay.classList.remove('opacity-0');
+        card.classList.remove('scale-100');
+        card.classList.add('scale-95');
+      }, 10);
+    }
+
+    function formatTextToParagraphs(rawText) {
+      if (!rawText) return '';
+      return rawText.toString().split('|')
+        .map(p => {
+          const trimmed = p.trim().replace(/\r?\n/g, '<br>');
+          return trimmed ? `<p class="mb-3 text-justify last:mb-0">${trimmed}</p>` : '';
+        }).join('');
+    }
+
+    function updateModalPage() {
+      if (!currentPoint || !currentPoint.pages || currentPoint.pages.length === 0) return;
+      const page = currentPoint.pages[currentPageIndex];
+      const totalPages = currentPoint.pages.length;
+
+      document.getElementById('modalText').innerHTML = formatTextToParagraphs(page.text);
+
+      const imgContainer = document.getElementById('modalImageContainer');
+      const imgEl = document.getElementById('modalImage');
+      if (page.image) {
+        imgEl.src = page.image;
+        imgContainer.classList.remove('hidden');
+      } else {
+        imgContainer.classList.add('hidden');
+      }
+
+      document.getElementById('pageIndicator').innerText = `Strana ${currentPageIndex + 1} z ${totalPages}`;
+      document.getElementById('prevPageBtn').disabled = (currentPageIndex === 0);
+      document.getElementById('nextPageBtn').disabled = (currentPageIndex === totalPages - 1);
+
+      const footer = document.getElementById('modalFooter');
+      if (totalPages <= 1) footer.classList.add('hidden');
+      else footer.classList.remove('hidden');
+    }
+
+    function changePage(delta) {
+      if (!currentPoint) return;
+      const newIndex = currentPageIndex + delta;
+      if (newIndex >= 0 && newIndex < currentPoint.pages.length) {
+        currentPageIndex = newIndex;
+        updateModalPage();
+      }
+    }
+
+    function closeModal() {
+      const overlay = document.getElementById('modalOverlay');
+      const card = document.getElementById('modalCard');
+      overlay.classList.add('opacity-0');
+      card.classList.remove('scale-100');
+      card.classList.add('scale-95');
+      setTimeout(() => overlay.classList.add('hidden'), 300);
+
+      if (previousCenter !== null && previousZoom !== null) {
+        map.flyTo(previousCenter, previousZoom, { animate: true, duration: 0.7 });
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', initMap);
   </script>
-
 </body>
 </html>
