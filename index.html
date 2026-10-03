@@ -37,9 +37,17 @@
       background-color: #020617 !important;
     }
 
-    /* Ošetření mřížky bez narušení ostrosti */
+    /* Ošetření mřížky a ostrosti pro retina/desktop */
     .leaflet-tile {
       outline: 1px solid transparent;
+      image-rendering: -webkit-optimize-contrast !important;
+      image-rendering: crisp-edges !important;
+      backface-visibility: hidden;
+    }
+
+    .leaflet-tile-container {
+      will-change: transform;
+      transform: translate3d(0, 0, 0);
     }
 
     .custom-dot-marker { background: none; border: none; }
@@ -68,7 +76,7 @@
   <div id="loaderScreen" class="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-6 text-white transition-opacity duration-500">
     <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
     <h2 class="text-xl font-bold mb-2">Načítání podkladové mapy...</h2>
-    <p id="loaderStatus" class="text-slate-400 text-sm mb-4">Výpočet geografických hranic...</p>
+    <p id="loaderStatus" class="text-slate-400 text-sm mb-4">Výpočet geografických hranic dlaždic...</p>
     <div class="w-72 bg-slate-800 rounded-full h-3 overflow-hidden p-0.5 border border-slate-700">
       <div id="loaderBar" class="bg-blue-500 h-full rounded-full w-0 transition-all duration-100"></div>
     </div>
@@ -117,11 +125,13 @@
 
     const CONFIG = {
       excelUrl: 'body.xlsx',
-      maxZoom: 14,
-      tileSize: 256 // Standardní velikost dlaždic
+      minZoom: 7,
+      maxZoom: 15,
+      tileSize: 256
     };
 
     let map;
+    let TILE_BOUNDS = null;
     let MAP_BOUNDS = null;
     let pointsData = [];
     let markersMap = new Map();
@@ -131,51 +141,38 @@
     let previousZoom = null;
     let previousCenter = null;
 
-    async function loadBoundsFromJgw() {
+    function calculateTileBounds() {
       const statusEl = document.getElementById('loaderStatus');
       const barEl = document.getElementById('loaderBar');
 
-      statusEl.innerText = 'Načítání podkladových dat...';
-      barEl.style.width = '30%';
+      statusEl.innerText = 'Definice hranic dlaždic v EPSG:3857...';
+      barEl.style.width = '50%';
 
-      const img = await new Promise((resolve, reject) => {
-        const image = new Image();
-        image.onload = () => resolve(image);
-        image.onerror = () => reject('Chyba: Soubor podklad.jpeg nebyl nalezen.');
-        image.src = './podklad.jpeg';
-      });
+      // Přesný rozsah Vašich nových dlaždic
+      const xMin = 1784044.5050;
+      const xMax = 1983647.1794;
+      const yMin = 6269869.6426;
+      const yMax = 6413150.3221;
 
-      barEl.style.width = '60%';
-
-      const response = await fetch('./podklad.jgw');
-      if (!response.ok) throw new Error('Chyba: Soubor podklad.jgw nebyl nalezen.');
-      const text = await response.text();
-      const lines = text.trim().split(/\r?\n/).map(Number);
-
-      const [A, D, B, E, C, F] = lines;
-      const width = img.width;
-      const height = img.height;
-
-      const xMin = C - (A / 2);
-      const yMax = F - (E / 2);
-      const xMax = xMin + (width * A);
-      const yMin = yMax + (height * E);
-
+      // Převod EPSG:3857 -> WGS84 (EPSG:4326) pro Leaflet
       const sw = proj4("EPSG:3857", "EPSG:4326", [xMin, yMin]);
       const ne = proj4("EPSG:3857", "EPSG:4326", [xMax, yMax]);
 
-      MAP_BOUNDS = L.latLngBounds(
+      TILE_BOUNDS = L.latLngBounds(
         L.latLng(sw[1], sw[0]),
         L.latLng(ne[1], ne[0])
       );
+
+      // Drobná 3% rezerva pouze pro dojezd gest, aby okrajové dlaždice nezmizely
+      MAP_BOUNDS = TILE_BOUNDS.pad(0.03);
 
       barEl.style.width = '100%';
     }
 
     function calculateCoverZoom() {
-      if (!map || !MAP_BOUNDS) return 8;
+      if (!map || !TILE_BOUNDS) return CONFIG.minZoom;
 
-      const bounds = MAP_BOUNDS;
+      const bounds = TILE_BOUNDS;
       const mapSize = map.getSize();
 
       const nw = map.project(bounds.getNorthWest(), 10);
@@ -189,20 +186,20 @@
       const scale = Math.max(scaleX, scaleY);
       const coverZoom = 10 + Math.log2(scale);
 
-      return Math.min(Math.max(coverZoom, 8), CONFIG.maxZoom);
+      return Math.min(Math.max(coverZoom, CONFIG.minZoom), CONFIG.maxZoom);
     }
 
     function fitMapToCover() {
-      if (!map || !MAP_BOUNDS) return;
+      if (!map || !TILE_BOUNDS) return;
       
       const coverZoom = calculateCoverZoom();
       map.setMinZoom(coverZoom);
-      map.setView(MAP_BOUNDS.getCenter(), coverZoom, { animate: false });
+      map.setView(TILE_BOUNDS.getCenter(), coverZoom, { animate: false });
     }
 
     async function initMap() {
       try {
-        await loadBoundsFromJgw();
+        calculateTileBounds();
 
         const loader = document.getElementById('loaderScreen');
         loader.classList.add('opacity-0');
@@ -211,26 +208,22 @@
         map = L.map('map', {
           zoomControl: false,
           attributionControl: false,
+          minZoom: CONFIG.minZoom,
           maxZoom: CONFIG.maxZoom,
           maxBounds: MAP_BOUNDS,
           maxBoundsViscosity: 1.0,
-          bounceAtZoomLimits: false
+          bounceAtZoomLimits: false,
+          fadeAnimation: false
         });
 
-        // 1. STATICKÝ PODKLAD (Vylepšuje vykreslení pod dlaždicemi)
-        L.imageOverlay('./podklad.jpeg', MAP_BOUNDS, {
-          pane: 'tilePane',
-          zIndex: 1,
-          interactive: false
-        }).addTo(map);
-
-        // 2. DLAŽDICOVÁ VRSTVA (1:1 zobrazení bez deformací)
+        // DLAŽDICOVÁ VRSTVA (Načítá přesně vaše nové dlaždice zoom 7-15)
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
+          minZoom: CONFIG.minZoom,
           maxZoom: CONFIG.maxZoom,
           tileSize: CONFIG.tileSize,
-          bounds: MAP_BOUNDS,
           noWrap: true,
-          keepBuffer: 6,
+          keepBuffer: 8,
+          updateWhenIdle: false,
           pane: 'tilePane',
           zIndex: 2
         }).addTo(map);
