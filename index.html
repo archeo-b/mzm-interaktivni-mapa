@@ -68,6 +68,14 @@
     .custom-scroll::-webkit-scrollbar { width: 6px; }
     .custom-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 8px; }
     .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 8px; }
+
+    /* Vylepšené plynulé přechody pro Modal okno */
+    #modalOverlay {
+      transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), backdrop-filter 0.35s ease;
+    }
+    #modalCard {
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
   </style>
 </head>
 <body class="relative w-full h-full select-none">
@@ -84,11 +92,11 @@
 
   <div id="map"></div>
 
-  <!-- MODAL OKÉNKO -->
-  <div id="modalOverlay" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/30 backdrop-blur-[2px] transition-all duration-300 opacity-0">
+  <!-- MODAL OKÉNKO S VYLEPŠENOU ANIMACÍ -->
+  <div id="modalOverlay" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/40 backdrop-blur-md opacity-0">
     <div class="absolute inset-0" onclick="closeModal()"></div>
 
-    <div id="modalCard" class="relative z-10 w-full max-w-xl bg-slate-900/95 border border-slate-700/80 rounded-3xl shadow-2xl text-white overflow-hidden transform scale-95 transition-all duration-300 flex flex-col max-h-[85vh]">
+    <div id="modalCard" class="relative z-10 w-full max-w-xl bg-slate-900/95 border border-slate-700/80 rounded-3xl shadow-2xl text-white overflow-hidden transform scale-95 translate-y-8 opacity-0 flex flex-col max-h-[85vh]">
       
       <div class="flex items-start justify-between p-5 border-b border-slate-800/80 bg-slate-900/50">
         <div>
@@ -179,9 +187,7 @@
         L.latLng(ne[1], ne[0])
       );
 
-      // Drobná 3% rezerva pouze pro okraje
       MAP_BOUNDS = RAW_BOUNDS.pad(0.03);
-
       barEl.style.width = '100%';
     }
 
@@ -233,7 +239,7 @@
           zoomAnimation: true
         });
 
-        // 1. STATICKÝ PODKLAD (Trvale na pozadí pod dlaždicemi místo černé plochy)
+        // 1. STATICKÝ PODKLAD (Trvale pod dlaždicemi)
         L.imageOverlay('./podklad.jpeg', RAW_BOUNDS, {
           pane: 'tilePane',
           zIndex: 1,
@@ -326,9 +332,10 @@
       previousZoom = map.getZoom();
       previousCenter = map.getCenter();
 
-      const targetZoom = Math.min(13, CONFIG.maxZoom);
+      // Pokud uživatel přiblížil více než na level 13, ponechá se jeho vyšší zoom
+      const targetZoom = Math.max(previousZoom, 13);
 
-      map.flyTo(coords, targetZoom, {
+      map.flyTo(coords, Math.min(targetZoom, CONFIG.maxZoom), {
         animate: true,
         duration: 0.7
       });
@@ -345,12 +352,15 @@
 
       const overlay = document.getElementById('modalOverlay');
       const card = document.getElementById('modalCard');
+      
       overlay.classList.remove('hidden');
-      setTimeout(() => {
+      
+      // Plynulé vysunutí modal okna s efektem vzletu
+      requestAnimationFrame(() => {
         overlay.classList.remove('opacity-0');
-        card.classList.remove('scale-100');
-        card.classList.add('scale-95');
-      }, 10);
+        card.classList.remove('scale-95', 'translate-y-8', 'opacity-0');
+        card.classList.add('scale-100', 'translate-y-0', 'opacity-100');
+      });
     }
 
     function formatTextToParagraphs(rawText) {
@@ -399,10 +409,14 @@
     function closeModal() {
       const overlay = document.getElementById('modalOverlay');
       const card = document.getElementById('modalCard');
+
       overlay.classList.add('opacity-0');
-      card.classList.remove('scale-100');
-      card.classList.add('scale-95');
-      setTimeout(() => overlay.classList.add('hidden'), 300);
+      card.classList.remove('scale-100', 'translate-y-0', 'opacity-100');
+      card.classList.add('scale-95', 'translate-y-8', 'opacity-0');
+
+      setTimeout(() => {
+        overlay.classList.add('hidden');
+      }, 350);
 
       if (previousCenter !== null && previousZoom !== null) {
         map.flyTo(previousCenter, previousZoom, { animate: true, duration: 0.7 });
