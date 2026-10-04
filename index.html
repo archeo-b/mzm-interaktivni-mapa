@@ -48,16 +48,17 @@
     .custom-dot-marker {
       background: none;
       border: none;
-      /* Zpomalená a vyhlazená animace objevování/mizení bodů (0.8s) */
-      transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), transform 0.8s cubic-bezier(0.4, 0, 0.2, 1) !important;
+      /* Výrazně natažená a plynulá animace objevování/mizení bodů (1.8s) */
+      transition: opacity 1.8s cubic-bezier(0.25, 0.1, 0.25, 1), transform 1.8s cubic-bezier(0.25, 0.1, 0.25, 1) !important;
       opacity: 1;
       pointer-events: auto;
+      will-change: opacity, transform;
     }
 
     .custom-dot-marker.dot-hidden {
       opacity: 0 !important;
       pointer-events: none !important;
-      transform: scale(0.4);
+      transform: scale(0.2);
     }
 
     .dot-wrapper {
@@ -670,7 +671,6 @@
 
       const slider = document.getElementById('timeSlider');
 
-      /* Mírně zrychleno: interval snížen ze 150ms na 100ms */
       playInterval = setInterval(() => {
         let currentVal = parseInt(slider.value, 10);
         if (currentVal >= parseInt(slider.max, 10)) {
