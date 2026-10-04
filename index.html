@@ -48,7 +48,8 @@
     .custom-dot-marker {
       background: none;
       border: none;
-      transition: opacity 0.4s ease, transform 0.4s ease !important;
+      /* Zpomalená a vyhlazená animace objevování/mizení bodů (0.8s) */
+      transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), transform 0.8s cubic-bezier(0.4, 0, 0.2, 1) !important;
       opacity: 1;
       pointer-events: auto;
     }
@@ -56,7 +57,7 @@
     .custom-dot-marker.dot-hidden {
       opacity: 0 !important;
       pointer-events: none !important;
-      transform: scale(0.5);
+      transform: scale(0.4);
     }
 
     .dot-wrapper {
@@ -76,7 +77,7 @@
       border-radius: 50%;
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
       cursor: pointer;
-      transition: transform 0.2s ease-out, background-color 0.2s ease-out;
+      transition: transform 0.3s ease-out, background-color 0.3s ease-out;
       position: relative;
       z-index: 2;
     }
@@ -405,7 +406,6 @@
         L.latLng(ne[1], ne[0])
       );
 
-      /* Přesné hranice mapy zamezující přesahu a černým pruhům */
       MAP_BOUNDS = RAW_BOUNDS;
       barEl.style.width = '100%';
     }
@@ -453,24 +453,21 @@
           minZoom: CONFIG.minZoom,
           maxZoom: CONFIG.maxZoom,
           maxBounds: MAP_BOUNDS,
-          maxBoundsViscosity: 1.0, /* Striktní udržení výřezu uvnitř hranic obrázku */
+          maxBoundsViscosity: 1.0,
           bounceAtZoomLimits: false,
           fadeAnimation: true,
           zoomAnimation: true
         });
 
-        // 1. VYTVOŘENÍ SPODNÍ VRSTVY PRO TRVALÝ PODKLADOVÝ OBRÁZEK
         map.createPane('bgPane');
         map.getPane('bgPane').style.zIndex = 100;
 
-        // 2. VLOŽENÍ TRVALÉHO MAPOVÉHO PODKLADU (podklad.jpeg)
         L.imageOverlay('./podklad.jpeg', RAW_BOUNDS, {
           pane: 'bgPane',
           interactive: false,
           opacity: 1
         }).addTo(map);
 
-        // 3. VLOŽENÍ DYNAMICKÝCH DLAŽDIC (vybraný detail)
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
           minZoom: CONFIG.minZoom,
           maxZoom: CONFIG.maxZoom,
@@ -479,7 +476,7 @@
           keepBuffer: 10,
           updateWhenIdle: false,
           updateWhenZooming: true,
-          unloadInvisibleTiles: false, /* Ponechá staré dlaždice v paměti při změně zoomu */
+          unloadInvisibleTiles: false,
           bounds: RAW_BOUNDS
         }).addTo(map);
 
@@ -673,6 +670,7 @@
 
       const slider = document.getElementById('timeSlider');
 
+      /* Mírně zrychleno: interval snížen ze 150ms na 100ms */
       playInterval = setInterval(() => {
         let currentVal = parseInt(slider.value, 10);
         if (currentVal >= parseInt(slider.max, 10)) {
@@ -682,7 +680,7 @@
         }
         slider.value = currentVal;
         onSliderInput(currentVal);
-      }, 150);
+      }, 100);
     }
 
     function stopPlay() {
