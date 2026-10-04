@@ -31,34 +31,22 @@
       z-index: 1;
     }
 
-    /* Plynulé podání dlaždic bez spár */
+    /* Plynulé podání dlaždic */
     .leaflet-tile {
       image-rendering: auto !important;
       outline: 1px solid transparent;
-      -webkit-backface-visibility: hidden;
-      backface-visibility: hidden;
     }
 
-    .leaflet-tile-container {
-      will-change: transform;
-      transform: translate3d(0, 0, 0);
-    }
-
-    /* --- STYLOVÁNÍ A ANIMACE BODŮ --- */
+    /* --- STYLOVÁNÍ BODŮ --- */
+    /* Odstraněny všechny vlastnosti transition a will-change z ikony Leafletu */
     .custom-dot-marker {
       background: none;
       border: none;
-      /* Výrazně natažená a plynulá animace objevování/mizení bodů (1.8s) */
-      transition: opacity 1.8s cubic-bezier(0.25, 0.1, 0.25, 1), transform 1.8s cubic-bezier(0.25, 0.1, 0.25, 1) !important;
-      opacity: 1;
       pointer-events: auto;
-      will-change: opacity, transform;
     }
 
     .custom-dot-marker.dot-hidden {
-      opacity: 0 !important;
-      pointer-events: none !important;
-      transform: scale(0.2);
+      display: none !important;
     }
 
     .dot-wrapper {
@@ -78,7 +66,7 @@
       border-radius: 50%;
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
       cursor: pointer;
-      transition: transform 0.3s ease-out, background-color 0.3s ease-out;
+      transition: transform 0.2s ease-out, background-color 0.2s ease-out;
       position: relative;
       z-index: 2;
     }
@@ -167,12 +155,11 @@
 
     /* --- PŘECHOD PANELU --- */
     #sidePanelOverlay {
-      transition: opacity 0.4s ease-out;
+      transition: opacity 0.3s ease-out;
     }
 
     #sidePanelCard {
-      transition: opacity 0.4s ease-out, transform 0.4s ease-out;
-      will-change: opacity, transform;
+      transition: opacity 0.3s ease-out, transform 0.3s ease-out;
     }
 
     .mist-hidden {
@@ -216,7 +203,6 @@
   <div class="absolute bottom-3 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-2xl pointer-events-auto">
     <div class="bg-slate-950/80 backdrop-blur-md border border-slate-700/50 rounded-xl px-3.5 py-2.5 shadow-xl flex flex-col gap-2">
       
-      <!-- HORNÍ ŘÁDEK -->
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-1.5">
           <button id="btn-all" onclick="showAllPoints()" class="px-2.5 py-1 bg-blue-600/90 hover:bg-blue-500 text-white rounded-lg text-[11px] font-semibold transition border border-blue-400/20 flex items-center gap-1 shadow-sm">
@@ -240,12 +226,10 @@
         </div>
       </div>
 
-      <!-- PROSTŘEDNÍ ŘÁDEK: POSUVNÍK -->
       <div class="relative px-0.5">
         <input type="range" id="timeSlider" min="-460" max="-25" value="-460" step="1" oninput="onSliderInput(this.value)">
       </div>
 
-      <!-- SPODNÍ ŘÁDEK: LEGENDA ÚSEKŮ -->
       <div class="grid grid-cols-7 text-xs text-slate-300 font-medium text-center border-t border-slate-800/80 pt-1.5 gap-0.5">
         <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-460)">
           <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT A</div>
@@ -289,7 +273,7 @@
       </linearGradient>
     </defs>
     <path id="connectorLine" d="" stroke="url(#lineGradient)" stroke-width="2" fill="none" stroke-linecap="round" />
-    <circle id="connectorDot" r="4" fill="#f59e0b" class="shadow-lg" />
+    <circle id="connectorDot" r="4" fill="#f59e0b" />
   </svg>
 
   <!-- BOČNÍ INFORMAČNÍ PANEL -->
@@ -298,7 +282,6 @@
 
     <div id="sidePanelCard" class="relative z-10 w-full sm:w-[48vw] sm:min-w-[600px] sm:max-w-[1100px] h-full sm:h-auto bg-slate-900 border-l sm:border border-slate-700/80 sm:rounded-3xl shadow-2xl text-white overflow-hidden mist-hidden flex flex-col max-h-full sm:max-h-[92vh] my-auto">
       
-      <!-- HLAVIČKA -->
       <div class="flex items-start justify-between p-5 sm:p-7 border-b border-slate-800 bg-slate-900/90">
         <div>
           <h2 id="modalTitle" class="text-xl sm:text-2xl lg:text-3xl font-bold text-white tracking-tight mb-2">Název lokality</h2>
@@ -309,7 +292,6 @@
         </button>
       </div>
 
-      <!-- OBSAH -->
       <div class="p-5 sm:p-8 overflow-y-auto custom-scroll flex-1 space-y-6">
         <div id="modalText" class="text-slate-300 text-base sm:text-lg leading-relaxed"></div>
         <div id="modalImageContainer" class="rounded-2xl overflow-hidden bg-slate-950/50 border border-slate-800 hidden">
@@ -317,7 +299,6 @@
         </div>
       </div>
 
-      <!-- PATIČKA -->
       <div id="modalFooter" class="flex items-center justify-between p-4 sm:p-6 border-t border-slate-800 bg-slate-900/90">
         <button id="prevPageBtn" onclick="changePage(-1)" class="flex items-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm sm:text-base font-medium transition disabled:opacity-30 disabled:cursor-not-allowed border border-slate-700">
           <i data-lucide="chevron-left" class="w-5 h-5"></i> Předchozí
@@ -364,10 +345,10 @@
     let currentPageIndex = 0;
     let previousZoom = null;
     let previousCenter = null;
-    let isUpdatingLine = false;
 
     let isPlaying = false;
     let playInterval = null;
+    let isMapAnimating = false;
 
     async function loadBoundsFromJgw() {
       const statusEl = document.getElementById('loaderStatus');
@@ -483,7 +464,16 @@
 
         fitMapToCover();
 
-        map.on('move zoom animemove viewreset', updateConnectorLine);
+        /* UDÁLOSTI PRO BEZPEČNOU SPOJOVACÍ ČÁRU BEZ SKÁKÁNÍ */
+        map.on('movestart zoomstart', () => {
+          isMapAnimating = true;
+          hideConnectorLine();
+        });
+
+        map.on('moveend zoomend', () => {
+          isMapAnimating = false;
+          updateConnectorLine();
+        });
 
         window.addEventListener('resize', () => {
           map.invalidateSize();
@@ -503,7 +493,6 @@
 
     function parseDateToYears(dateStr) {
       if (!dateStr) return { start: -9999, end: 9999 };
-
       const str = String(dateStr).toUpperCase().replace(/\s+/g, '');
 
       let foundIndices = [];
@@ -709,42 +698,42 @@
       }
     }
 
+    function hideConnectorLine() {
+      const svgContainer = document.getElementById('connectorSvg');
+      if (svgContainer) svgContainer.classList.add('hidden');
+    }
+
     function updateConnectorLine() {
-      if (isUpdatingLine) return;
-      isUpdatingLine = true;
+      if (isMapAnimating) return;
 
-      requestAnimationFrame(() => {
-        isUpdatingLine = false;
+      const svgContainer = document.getElementById('connectorSvg');
+      const line = document.getElementById('connectorLine');
+      const dot = document.getElementById('connectorDot');
+      const card = document.getElementById('sidePanelCard');
 
-        const svgContainer = document.getElementById('connectorSvg');
-        const line = document.getElementById('connectorLine');
-        const dot = document.getElementById('connectorDot');
-        const card = document.getElementById('sidePanelCard');
+      if (!activePointLatLng || window.innerWidth < 640 || card.classList.contains('mist-hidden')) {
+        hideConnectorLine();
+        return;
+      }
 
-        if (!activePointLatLng || window.innerWidth < 640 || card.classList.contains('mist-hidden')) {
-          svgContainer.classList.add('hidden');
-          return;
-        }
+      const pointPx = map.latLngToContainerPoint(activePointLatLng);
+      const cardRect = card.getBoundingClientRect();
+      const cardX = cardRect.left;
+      const cardY = cardRect.top + 60;
 
-        const pointPx = map.latLngToContainerPoint(activePointLatLng);
-        const cardRect = card.getBoundingClientRect();
-        const cardX = cardRect.left;
-        const cardY = cardRect.top + 60;
+      if (pointPx.x >= cardX) {
+        hideConnectorLine();
+        return;
+      }
 
-        if (pointPx.x >= cardX) {
-          svgContainer.classList.add('hidden');
-          return;
-        }
+      svgContainer.classList.remove('hidden');
 
-        svgContainer.classList.remove('hidden');
+      const controlX = pointPx.x + (cardX - pointPx.x) * 0.5;
+      const pathData = `M ${pointPx.x} ${pointPx.y} C ${controlX} ${pointPx.y}, ${controlX} ${cardY}, ${cardX} ${cardY}`;
 
-        const controlX = pointPx.x + (cardX - pointPx.x) * 0.5;
-        const pathData = `M ${pointPx.x} ${pointPx.y} C ${controlX} ${pointPx.y}, ${controlX} ${cardY}, ${cardX} ${cardY}`;
-
-        line.setAttribute('d', pathData);
-        dot.setAttribute('cx', pointPx.x);
-        dot.setAttribute('cy', pointPx.y);
-      });
+      line.setAttribute('d', pathData);
+      dot.setAttribute('cx', pointPx.x);
+      dot.setAttribute('cy', pointPx.y);
     }
 
     function onPointClick(point, coords) {
@@ -792,7 +781,7 @@
         overlay.classList.remove('opacity-0');
         card.classList.remove('mist-hidden');
         card.classList.add('mist-visible');
-        setTimeout(updateConnectorLine, 100);
+        setTimeout(updateConnectorLine, 350);
       });
     }
 
@@ -842,16 +831,15 @@
     function closeModal() {
       const overlay = document.getElementById('sidePanelOverlay');
       const card = document.getElementById('sidePanelCard');
-      const svgContainer = document.getElementById('connectorSvg');
 
+      hideConnectorLine();
       overlay.classList.add('opacity-0');
       card.classList.remove('mist-visible');
       card.classList.add('mist-hidden');
-      svgContainer.classList.add('hidden');
 
       setTimeout(() => {
         overlay.classList.add('hidden');
-      }, 400);
+      }, 300);
 
       setActiveMarker(null, null);
 
