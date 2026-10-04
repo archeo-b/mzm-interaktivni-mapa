@@ -50,11 +50,11 @@
       transform: translate3d(0, 0, 0);
     }
 
-    /* --- STYLOVÁNÍ A ANIMACE BODŮ --- */
+    /* --- STYLOVÁNÍ A ANIMACE BODŮ (OPRAVENO: Bez přechodů na samotném markeru) --- */
     .custom-dot-marker {
       background: none;
       border: none;
-      transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+      /* DŮLEŽITÉ: Není zde žádná CSS transition pro transform/position! */
     }
 
     .dot-wrapper {
@@ -163,11 +163,11 @@
 
     /* --- HARDWAROVĚ OPTIMALIZOVANÝ PŘECHOD PANELU --- */
     #sidePanelOverlay {
-      transition: opacity 0.5s ease-out;
+      transition: opacity 0.4s ease-out;
     }
 
     #sidePanelCard {
-      transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+      transition: opacity 0.4s ease-out, transform 0.4s ease-out;
       will-change: opacity, transform;
     }
 
@@ -212,23 +212,20 @@
   <div class="absolute bottom-3 left-1/2 -translate-x-1/2 z-40 w-[90%] max-w-2xl pointer-events-auto">
     <div class="bg-slate-950/75 backdrop-blur-md border border-slate-700/50 rounded-xl px-3 py-2 shadow-xl flex flex-col gap-1.5">
       
-      <!-- HORNÍ ŘÁDEK: Ovládací tlačítka a Indikátor -->
+      <!-- HORNÍ ŘÁDEK -->
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-1.5">
-          <!-- Tlačítko Zobrazit vše -->
           <button id="btn-all" onclick="showAllPoints()" class="px-2.5 py-1 bg-blue-600/90 hover:bg-blue-500 text-white rounded-lg text-[11px] font-semibold transition border border-blue-400/20 flex items-center gap-1 shadow-sm">
             <i data-lucide="layers" class="w-3.5 h-3.5"></i>
             <span>Zobrazit vše</span>
           </button>
 
-          <!-- Tlačítko Přehřát / Pauza -->
           <button id="btn-play" onclick="togglePlay()" class="px-2.5 py-1 bg-slate-800/80 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-semibold transition border border-slate-700/60 flex items-center gap-1">
             <i id="play-icon" data-lucide="play" class="w-3.5 h-3.5 text-emerald-400"></i>
             <span id="play-text">Přehrát</span>
           </button>
         </div>
 
-        <!-- Ukazatel obdobu a přesného roku -->
         <div class="flex items-center gap-2">
           <span id="currentPeriodLabel" class="px-2 py-0.5 bg-amber-500/15 text-amber-300 border border-amber-500/20 rounded text-[10px] font-bold">
             Všechna období
@@ -239,12 +236,12 @@
         </div>
       </div>
 
-      <!-- PROSTŘEDNÍ ŘÁDEK: POSUVNÍK (Min = -460 [470/450 př.n.l.], Max = -25 [30/20 př.n.l.]) -->
+      <!-- PROSTŘEDNÍ ŘÁDEK: POSUVNÍK -->
       <div class="relative px-0.5">
         <input type="range" id="timeSlider" min="-460" max="-25" value="-460" step="1" oninput="onSliderInput(this.value)">
       </div>
 
-      <!-- SPODNÍ ŘÁDEK: LEGENDA ÚSEKŮ DLE PŘESNÝCH LETOPOČTŮ -->
+      <!-- SPODNÍ ŘÁDEK: LEGENDA ÚSEKŮ -->
       <div class="grid grid-cols-7 text-[9px] text-slate-400 font-medium text-center border-t border-slate-800/60 pt-1">
         <div class="hover:text-blue-300 cursor-pointer transition" onclick="setYear(-460)">
           <div class="font-bold text-slate-300">LT A</div>
@@ -341,9 +338,6 @@
       tileSize: 256
     };
 
-    // PŘESNÉ DEFINICE STUPŇŮ PODLE ZADÁNÍ:
-    // LT A: 470/450 až 400/390 | LT B1: 400/390 až 330/320 | LT B2: 330/320 až 260/250
-    // LT C1: 260/250 až 175/165 | LT C2: 175/165 až 125/115 | LT D1: 125/115 až 70/60 | LT D2: 70/60 až 30/20
     const PERIOD_BOUNDS = [
       { name: "LT A",  startYear: -460, endYear: -395 },
       { name: "LT B1", startYear: -395, endYear: -325 },
@@ -435,7 +429,6 @@
 
     function fitMapToCover() {
       if (!map || !RAW_BOUNDS) return;
-      
       const coverZoom = calculateCoverZoom();
       map.setMinZoom(coverZoom);
       map.setView(RAW_BOUNDS.getCenter(), coverZoom, { animate: false });
@@ -457,18 +450,17 @@
           maxBounds: MAP_BOUNDS,
           maxBoundsViscosity: 1.0,
           bounceAtZoomLimits: false,
-          fadeAnimation: true,
+          fadeAnimation: false,  /* Vypnuto pro stabilní pozice při přibližování */
           zoomAnimation: true
         });
 
-        // 1. STATICKÝ PODKLAD
+        // Podkladové vrstvy
         L.imageOverlay('./podklad.jpeg', RAW_BOUNDS, {
           pane: 'tilePane',
           zIndex: 1,
           interactive: false
         }).addTo(map);
 
-        // 2. DLAŽDICOVÁ VRSTVA
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
           minZoom: CONFIG.minZoom,
           maxZoom: CONFIG.maxZoom,
@@ -484,7 +476,8 @@
 
         fitMapToCover();
 
-        map.on('move zoom viewreset', updateConnectorLine);
+        // Sledování pohybu mapy pro plynulé překreslování spojovací čáry
+        map.on('move zoom animemove viewreset', updateConnectorLine);
 
         window.addEventListener('resize', () => {
           map.invalidateSize();
@@ -502,7 +495,6 @@
       }
     }
 
-    /* --- PARSE A INTERPRETACE DATACE Z EXCELU --- */
     function parseDateToYears(dateStr) {
       if (!dateStr) return { start: -9999, end: 9999 };
 
@@ -592,22 +584,19 @@
       });
     }
 
-    /* --- FILTROVÁNÍ MAPY PODLE ČASU --- */
     function updateMapPointsVisibility(currentYear) {
       pointsData.forEach(pt => {
         const marker = markersMap.get(pt.id);
         if (!marker) return;
 
         const isVisible = (currentYear >= pt.startYear && currentYear <= pt.endYear);
-
         const element = marker.getElement();
+
         if (element) {
           if (isVisible) {
             element.style.display = 'block';
-            setTimeout(() => { element.style.opacity = '1'; }, 10);
           } else {
-            element.style.opacity = '0';
-            setTimeout(() => { if (element.style.opacity === '0') element.style.display = 'none'; }, 300);
+            element.style.display = 'none';
           }
         }
 
@@ -656,18 +645,13 @@
         const element = marker.getElement();
         if (element) {
           element.style.display = 'block';
-          element.style.opacity = '1';
         }
       });
     }
 
-    /* --- PŘEHRÁVÁNÍ ČASOVÉ OSY (PLAY / PAUSE) --- */
     function togglePlay() {
-      if (isPlaying) {
-        stopPlay();
-      } else {
-        startPlay();
-      }
+      if (isPlaying) stopPlay();
+      else startPlay();
     }
 
     function startPlay() {
@@ -719,7 +703,6 @@
       }
     }
 
-    /* --- SPOJOVACÍ LINKA K INFORMAČNÍMU PANELU --- */
     function updateConnectorLine() {
       if (isUpdatingLine) return;
       isUpdatingLine = true;
@@ -759,10 +742,13 @@
     }
 
     function onPointClick(point, coords) {
-      previousZoom = map.getZoom();
-      previousCenter = map.getCenter();
+      // Uložení výchozího stavu pouze pokud ještě panel nebyl otevřen
+      if (activeMarkerId === null) {
+        previousZoom = map.getZoom();
+        previousCenter = map.getCenter();
+      }
 
-      const targetZoom = Math.min(Math.max(previousZoom, CONFIG.targetZoom), CONFIG.maxZoom);
+      const targetZoom = Math.min(Math.max(map.getZoom(), CONFIG.targetZoom), CONFIG.maxZoom);
       const latLng = L.latLng(coords[0], coords[1]);
       const isMobile = window.innerWidth < 640;
 
@@ -777,16 +763,10 @@
         const newCenterPx = L.point(pointPx.x + shiftX, pointPx.y);
         const targetCenter = map.unproject(newCenterPx, targetZoom);
 
-        map.flyTo(targetCenter, targetZoom, {
-          animate: true,
-          duration: 0.8
-        });
-
-        setTimeout(() => {
-          openModal(point);
-        }, 100);
+        map.setView(targetCenter, targetZoom, { animate: true });
+        openModal(point);
       } else {
-        map.flyTo(latLng, targetZoom, { animate: true, duration: 0.8 });
+        map.setView(latLng, targetZoom, { animate: true });
         openModal(point);
       }
     }
@@ -807,7 +787,7 @@
         overlay.classList.remove('opacity-0');
         card.classList.remove('mist-hidden');
         card.classList.add('mist-visible');
-        setTimeout(updateConnectorLine, 150);
+        setTimeout(updateConnectorLine, 100);
       });
     }
 
@@ -866,12 +846,12 @@
 
       setTimeout(() => {
         overlay.classList.add('hidden');
-      }, 500);
+      }, 400);
 
       setActiveMarker(null, null);
 
       if (previousCenter !== null && previousZoom !== null) {
-        map.flyTo(previousCenter, previousZoom, { animate: true, duration: 0.8 });
+        map.setView(previousCenter, previousZoom, { animate: true });
       }
     }
 
