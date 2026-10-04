@@ -159,18 +159,18 @@
     .custom-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 8px; }
     .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 8px; }
 
-    /* --- PŘECHOD PANELU --- */
+    /* --- PŘECHOD PANELU (ZPOMALENO NA 0.8s) --- */
     #sidePanelOverlay {
-      transition: opacity 0.3s ease-out;
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     #sidePanelCard {
-      transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .mist-hidden {
       opacity: 0 !important;
-      transform: scale(0.96) translateY(10px) !important;
+      transform: scale(0.95) translateY(16px) !important;
     }
 
     .mist-visible {
@@ -355,6 +355,15 @@
     let isPlaying = false;
     let playInterval = null;
     let isMapAnimating = false;
+
+    /* Pomocná funkce pro velmi plynulý a pomalý posun mapy */
+    function smoothSetView(targetCenter, targetZoom) {
+      map.flyTo(targetCenter, targetZoom, {
+        animate: true,
+        duration: 1.8, // Délka animace v sekundách (pomalý, elegantní přechod)
+        easeLinearity: 0.25
+      });
+    }
 
     async function loadBoundsFromJgw() {
       const statusEl = document.getElementById('loaderStatus');
@@ -762,10 +771,10 @@
         const newCenterPx = L.point(pointPx.x + shiftX, pointPx.y);
         const targetCenter = map.unproject(newCenterPx, targetZoom);
 
-        map.setView(targetCenter, targetZoom, { animate: true });
+        smoothSetView(targetCenter, targetZoom);
         openModal(point);
       } else {
-        map.setView(latLng, targetZoom, { animate: true });
+        smoothSetView(latLng, targetZoom);
         openModal(point);
       }
     }
@@ -786,7 +795,7 @@
         overlay.classList.remove('opacity-0');
         card.classList.remove('mist-hidden');
         card.classList.add('mist-visible');
-        setTimeout(updateConnectorLine, 350);
+        setTimeout(updateConnectorLine, 600);
       });
     }
 
@@ -844,7 +853,7 @@
 
       setTimeout(() => {
         overlay.classList.add('hidden');
-      }, 300);
+      }, 800);
 
       setActiveMarker(null, null);
 
@@ -852,7 +861,7 @@
         const minAllowedZoom = map.getMinZoom();
         const safeZoom = Math.max(previousZoom, minAllowedZoom);
 
-        map.setView(previousCenter, safeZoom, { animate: true });
+        smoothSetView(previousCenter, safeZoom);
       }
     }
 
