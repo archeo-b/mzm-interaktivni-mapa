@@ -37,18 +37,15 @@
       outline: 1px solid transparent;
     }
 
-    /* --- STYLOVÁNÍ BODŮ --- */
-    /* Odstraněny všechny vlastnosti transition a will-change z ikony Leafletu */
+    /* --- STYLOVÁNÍ A PLYNULÁ ANIMACE BODŮ --- */
+    /* Hlavní container značky od Leafletu zůstává BEZ jakýchkoliv CSS transition, aby se nekazil posun/zoom */
     .custom-dot-marker {
       background: none;
       border: none;
       pointer-events: auto;
     }
 
-    .custom-dot-marker.dot-hidden {
-      display: none !important;
-    }
-
+    /* Vnitřní obal řeší samotnou plynulou animaci průhlednosti a zvětšení/zmenšení */
     .dot-wrapper {
       position: relative;
       width: 20px;
@@ -56,6 +53,17 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      /* Plynulá animace opacity a zmenšení při zmizení (1.8s) */
+      transition: opacity 1.8s cubic-bezier(0.25, 0.1, 0.25, 1), transform 1.8s cubic-bezier(0.25, 0.1, 0.25, 1);
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    /* Skrytý stav - plynule zmizí a zmenší se, nereaguje na myš */
+    .custom-dot-marker.dot-hidden .dot-wrapper {
+      opacity: 0 !important;
+      transform: scale(0.2) !important;
+      pointer-events: none !important;
     }
 
     .dot-element {
@@ -464,7 +472,6 @@
 
         fitMapToCover();
 
-        /* UDÁLOSTI PRO BEZPEČNOU SPOJOVACÍ ČÁRU BEZ SKÁKÁNÍ */
         map.on('movestart zoomstart', () => {
           isMapAnimating = true;
           hideConnectorLine();
