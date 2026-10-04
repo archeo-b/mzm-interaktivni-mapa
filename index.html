@@ -490,38 +490,33 @@
       const targetZoom = Math.min(Math.max(previousZoom, CONFIG.targetZoom), CONFIG.maxZoom);
       const latLng = L.latLng(coords[0], coords[1]);
       const isMobile = window.innerWidth < 640;
-      
-      let targetCenter = latLng;
-
-      if (!isMobile) {
-        const card = document.getElementById('sidePanelCard');
-        const cardWidth = card ? card.offsetWidth : (window.innerWidth * 0.48);
-        
-        // PŘESNÝ POSUN:
-        // Cílová pozice bodu na obrazovce má být ve středu levé viditelné části: (window.innerWidth - cardWidth) / 2
-        const targetPointScreenX = (window.innerWidth - cardWidth) / 2;
-        const targetPointScreenY = window.innerHeight / 2;
-
-        // Převedeme zeměpisné souřadnice bodu na souřadnice v pixelech při novém zoomu
-        const pointPixelAtTargetZoom = map.project(latLng, targetZoom);
-        
-        // Vypočteme, kde musí ležet střed mapy (v pixelech)
-        const centerOffset = L.point(
-          (window.innerWidth / 2) - targetPointScreenX,
-          (window.innerHeight / 2) - targetPointScreenY
-        );
-
-        const targetCenterPixel = pointPixelAtTargetZoom.add(centerOffset);
-        targetCenter = map.unproject(targetCenterPixel, targetZoom);
-      }
 
       setActiveMarker(point.id, latLng);
       openModal(point);
 
-      map.flyTo(targetCenter, targetZoom, {
-        animate: true,
-        duration: 1.0
-      });
+      if (!isMobile) {
+        // Zjistíme reálnou šířku panelu
+        const card = document.getElementById('sidePanelCard');
+        const cardWidth = (card && card.offsetWidth > 0) ? card.offsetWidth : (window.innerWidth * 0.48);
+
+        // Posun středu mapy doprava = posun bodu na obrazovce doleva
+        const shiftX = cardWidth / 2;
+
+        // Vypočteme cílový střed tak, aby bod ležel uprostřed levé volné části
+        const pointPx = map.project(latLng, targetZoom);
+        const newCenterPx = L.point(pointPx.x + shiftX, pointPx.y);
+        const targetCenter = map.unproject(newCenterPx, targetZoom);
+
+        map.flyTo(targetCenter, targetZoom, {
+          animate: true,
+          duration: 1.0
+        });
+      } else {
+        map.flyTo(latLng, targetZoom, {
+          animate: true,
+          duration: 1.0
+        });
+      }
     }
 
     function openModal(point) {
