@@ -54,6 +54,7 @@
     .custom-dot-marker {
       background: none;
       border: none;
+      transition: opacity 0.3s ease-out, transform 0.3s ease-out;
     }
 
     .dot-wrapper {
@@ -117,8 +118,46 @@
       }
     }
 
+    /* --- STYLOVÁNÍ POSUVNÍKU (SLIDERU) --- */
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 100%;
+      background: transparent;
+    }
+
+    input[type=range]:focus {
+      outline: none;
+    }
+
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 8px;
+      cursor: pointer;
+      background: #334155;
+      border-radius: 4px;
+      border: 1px solid #475569;
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+      height: 22px;
+      width: 22px;
+      border-radius: 50%;
+      background: #3b82f6;
+      border: 2px solid #ffffff;
+      cursor: pointer;
+      -webkit-appearance: none;
+      margin-top: -7px;
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+      transition: background-color 0.15s ease;
+    }
+
+    input[type=range]::-webkit-slider-thumb:hover {
+      background: #60a5fa;
+      transform: scale(1.1);
+    }
+
     /* --- SCROLLBAR --- */
-    .custom-scroll::-webkit-scrollbar { width: 6px; }
+    .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
     .custom-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 8px; }
     .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 8px; }
 
@@ -168,6 +207,78 @@
   </div>
 
   <div id="map"></div>
+
+  <!-- INTERAKTIVNÍ ČASOVÁ OSA (TAHACÍ POSUVNÍK NAD MAPOU) -->
+  <div class="absolute bottom-5 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-5xl pointer-events-auto">
+    <div class="bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-2xl p-4 shadow-2xl flex flex-col gap-3">
+      
+      <!-- HORNÍ ŘÁDEK: Tlačítko Zobrazit vše + Přehrávání + Zobrazení aktuálního roku / období -->
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <!-- Tlačítko Zobrazit vše -->
+          <button id="btn-all" onclick="showAllPoints()" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition border border-blue-400/30 flex items-center gap-1.5 shadow-md">
+            <i data-lucide="layers" class="w-4 h-4"></i>
+            <span>Zobrazit vše</span>
+          </button>
+
+          <!-- Tlačítko Play / Pause -->
+          <button id="btn-play" onclick="togglePlay()" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition border border-slate-700 flex items-center gap-1.5">
+            <i id="play-icon" data-lucide="play" class="w-4 h-4 text-emerald-400"></i>
+            <span id="play-text">Přehrát</span>
+          </button>
+        </div>
+
+        <!-- Ukazatel aktuálního roku a LT stupně -->
+        <div class="flex items-center gap-3">
+          <span id="currentPeriodLabel" class="px-3 py-1 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg text-xs font-bold">
+            Všechna období
+          </span>
+          <span id="currentYearLabel" class="text-sm font-extrabold text-white tracking-wider">
+            460 př. n. l.
+          </span>
+        </div>
+      </div>
+
+      <!-- PROSTŘEDNÍ ŘÁDEK: TAŽNÝ POSUVNÍK (SLIDER) -->
+      <div class="relative px-1 my-1">
+        <!-- Min roku = -460 (460 př.n.l.), Max roku = -38 (38 př.n.l.) -->
+        <input type="range" id="timeSlider" min="-460" max="-38" value="-460" step="1" oninput="onSliderInput(this.value)">
+      </div>
+
+      <!-- SPODNÍ ŘÁDEK: LEGENDA S ÚSEKY LT -->
+      <div class="grid grid-cols-7 text-[10px] sm:text-xs text-slate-400 font-medium text-center border-t border-slate-800 pt-2 gap-1">
+        <div class="hover:text-blue-400 cursor-pointer transition" onclick="setYear(-460)">
+          <div class="font-bold text-slate-200">LT A</div>
+          <div class="text-[9px] text-slate-500">460–395</div>
+        </div>
+        <div class="hover:text-blue-400 cursor-pointer transition" onclick="setYear(-395)">
+          <div class="font-bold text-slate-200">LT B1</div>
+          <div class="text-[9px] text-slate-500">395–325</div>
+        </div>
+        <div class="hover:text-blue-400 cursor-pointer transition" onclick="setYear(-325)">
+          <div class="font-bold text-slate-200">LT B2</div>
+          <div class="text-[9px] text-slate-500">325–255</div>
+        </div>
+        <div class="hover:text-blue-400 cursor-pointer transition" onclick="setYear(-255)">
+          <div class="font-bold text-slate-200">LT C1</div>
+          <div class="text-[9px] text-slate-500">255–170</div>
+        </div>
+        <div class="hover:text-blue-400 cursor-pointer transition" onclick="setYear(-170)">
+          <div class="font-bold text-slate-200">LT C2</div>
+          <div class="text-[9px] text-slate-500">170–120</div>
+        </div>
+        <div class="hover:text-blue-400 cursor-pointer transition" onclick="setYear(-120)">
+          <div class="font-bold text-slate-200">LT D1</div>
+          <div class="text-[9px] text-slate-500">120–65</div>
+        </div>
+        <div class="hover:text-blue-400 cursor-pointer transition" onclick="setYear(-65)">
+          <div class="font-bold text-slate-200">LT D2</div>
+          <div class="text-[9px] text-slate-500">65–38</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
 
   <!-- SVG VRSTVA PRO SPOJOVACÍ LINKU -->
   <svg id="connectorSvg" class="fixed inset-0 w-full h-full pointer-events-none z-40 hidden">
@@ -231,6 +342,17 @@
       tileSize: 256
     };
 
+    // Definice stupňů s reprezentativními středními roky pro výpočet intervalů
+    const PERIOD_BOUNDS = [
+      { name: "LT A",  startYear: -460, endYear: -395 },
+      { name: "LT B1", startYear: -395, endYear: -325 },
+      { name: "LT B2", startYear: -325, endYear: -255 },
+      { name: "LT C1", startYear: -255, endYear: -170 },
+      { name: "LT C2", startYear: -170, endYear: -120 },
+      { name: "LT D1", startYear: -120, endYear: -65 },
+      { name: "LT D2", startYear: -65,  endYear: -38 }
+    ];
+
     let map;
     let RAW_BOUNDS = null;
     let MAP_BOUNDS = null;
@@ -244,6 +366,10 @@
     let previousZoom = null;
     let previousCenter = null;
     let isUpdatingLine = false;
+
+    let isPlaying = false;
+    let playInterval = null;
+    let isFilterActive = false;
 
     async function loadBoundsFromJgw() {
       const statusEl = document.getElementById('loaderStatus');
@@ -376,6 +502,33 @@
       }
     }
 
+    /* --- PARSE A INTERPRETACE DATACE Z EXCELU --- */
+    function parseDateToYears(dateStr) {
+      if (!dateStr) return { start: -9999, end: 9999 };
+
+      const str = String(dateStr).toUpperCase().replace(/\s+/g, '');
+
+      // Zjištění rozsahu podle nalezených stupňů (např. LT B2 - LT C2)
+      let foundIndices = [];
+      PERIOD_BOUNDS.forEach((p, idx) => {
+        const code = p.name.replace(/\s+/g, '');
+        if (str.includes(code)) {
+          foundIndices.push(idx);
+        }
+      });
+
+      if (foundIndices.length > 0) {
+        const minIdx = Math.min(...foundIndices);
+        const maxIdx = Math.max(...foundIndices);
+        return {
+          start: PERIOD_BOUNDS[minIdx].startYear,
+          end: PERIOD_BOUNDS[maxIdx].endYear
+        };
+      }
+
+      return { start: -460, end: -38 };
+    }
+
     async function loadPointsFromExcel() {
       try {
         const response = await fetch(CONFIG.excelUrl);
@@ -391,27 +544,35 @@
               pages.push({ text: row[`text${i}`] || '', image: row[`image${i}`] || '' });
             }
           }
+
+          const rawDate = row.datace ? String(row.datace).trim() : '';
+          const yearsRange = parseDateToYears(rawDate);
+
           return {
             id: index + 1,
             title: row.title || 'Bez názvu',
             category: row.category || '',
+            dateStr: rawDate,
+            startYear: yearsRange.start,
+            endYear: yearsRange.end,
             lat: parseFloat(row.lat),
             lng: parseFloat(row.lng),
             pages: pages
           };
         });
 
-        renderPoints(pointsData);
+        initMarkers();
+        showAllPoints();
       } catch (error) {
         console.error('Chyba při načítání souboru body.xlsx:', error);
       }
     }
 
-    function renderPoints(points) {
+    function initMarkers() {
       markersMap.forEach(marker => map.removeLayer(marker));
       markersMap.clear();
 
-      points.forEach(pt => {
+      pointsData.forEach(pt => {
         if (isNaN(pt.lat) || isNaN(pt.lng)) return;
 
         const customIcon = L.divIcon({
@@ -432,6 +593,124 @@
       });
     }
 
+    /* --- FILTROVÁNÍ MAPY PODLE ČASU --- */
+    function updateMapPointsVisibility(currentYear) {
+      isFilterActive = true;
+
+      pointsData.forEach(pt => {
+        const marker = markersMap.get(pt.id);
+        if (!marker) return;
+
+        // Kontrola, zda rok spadá do existence lokality
+        const isVisible = (currentYear >= pt.startYear && currentYear <= pt.endYear);
+
+        const element = marker.getElement();
+        if (element) {
+          if (isVisible) {
+            element.style.display = 'block';
+            setTimeout(() => { element.style.opacity = '1'; }, 10);
+          } else {
+            element.style.opacity = '0';
+            setTimeout(() => { if (element.style.opacity === '0') element.style.display = 'none'; }, 300);
+          }
+        }
+
+        // Pokud skrytá lokalita měla otevřené detailní okno, zavřeme ho
+        if (!isVisible && activeMarkerId === pt.id) {
+          closeModal();
+        }
+      });
+    }
+
+    function onSliderInput(val) {
+      const year = parseInt(val, 10);
+      updateYearDisplay(year);
+      updateMapPointsVisibility(year);
+    }
+
+    function setYear(year) {
+      const slider = document.getElementById('timeSlider');
+      slider.value = year;
+      onSliderInput(year);
+    }
+
+    function updateYearDisplay(year) {
+      const yearLabel = document.getElementById('currentYearLabel');
+      const periodLabel = document.getElementById('currentPeriodLabel');
+
+      const absYear = Math.abs(year);
+      yearLabel.innerText = `${absYear} př. n. l.`;
+
+      // Najít odpovídající období
+      const currentPeriod = PERIOD_BOUNDS.find(p => year >= p.startYear && year <= p.endYear);
+      if (currentPeriod) {
+        periodLabel.innerText = currentPeriod.name;
+      } else {
+        periodLabel.innerText = 'LT období';
+      }
+    }
+
+    function showAllPoints() {
+      if (isPlaying) stopPlay();
+      isFilterActive = false;
+
+      document.getElementById('currentPeriodLabel').innerText = 'Všechna období';
+      document.getElementById('currentYearLabel').innerText = '460 – 38 př. n. l.';
+
+      pointsData.forEach(pt => {
+        const marker = markersMap.get(pt.id);
+        if (!marker) return;
+        const element = marker.getElement();
+        if (element) {
+          element.style.display = 'block';
+          element.style.opacity = '1';
+        }
+      });
+    }
+
+    /* --- PŘEHRÁVÁNÍ ČASOVÉ OSY (PLAY / PAUSE) --- */
+    function togglePlay() {
+      if (isPlaying) {
+        stopPlay();
+      } else {
+        startPlay();
+      }
+    }
+
+    function startPlay() {
+      isPlaying = true;
+      const playIcon = document.getElementById('play-icon');
+      const playText = document.getElementById('play-text');
+      playIcon.setAttribute('data-lucide', 'pause');
+      playIcon.classList.replace('text-emerald-400', 'text-amber-400');
+      playText.innerText = 'Pauza';
+      lucide.createIcons();
+
+      const slider = document.getElementById('timeSlider');
+
+      playInterval = setInterval(() => {
+        let currentVal = parseInt(slider.value, 10);
+        if (currentVal >= parseInt(slider.max, 10)) {
+          currentVal = parseInt(slider.min, 10);
+        } else {
+          currentVal += 2; // Rychlost posunu (roky za krok)
+        }
+        slider.value = currentVal;
+        onSliderInput(currentVal);
+      }, 150);
+    }
+
+    function stopPlay() {
+      isPlaying = false;
+      if (playInterval) clearInterval(playInterval);
+      const playIcon = document.getElementById('play-icon');
+      const playText = document.getElementById('play-text');
+      playIcon.setAttribute('data-lucide', 'play');
+      playIcon.classList.replace('text-amber-400', 'text-emerald-400');
+      playText.innerText = 'Přehrát';
+      lucide.createIcons();
+    }
+
     function setActiveMarker(pointId, latLng) {
       if (activeMarkerId !== null) {
         const prevEl = document.getElementById(`marker-wrapper-${activeMarkerId}`);
@@ -447,7 +726,7 @@
       }
     }
 
-    /* --- OPTIMALIZOVANÝ VÝPOČET SPOJOVACÍ ČÁRY (requestAnimationFrame) --- */
+    /* --- SPOJOVACÍ LINKA K INFORMAČNÍMU PANELU --- */
     function updateConnectorLine() {
       if (isUpdatingLine) return;
       isUpdatingLine = true;
@@ -505,13 +784,11 @@
         const newCenterPx = L.point(pointPx.x + shiftX, pointPx.y);
         const targetCenter = map.unproject(newCenterPx, targetZoom);
 
-        // 1. Plynulý dolet mapy
         map.flyTo(targetCenter, targetZoom, {
           animate: true,
           duration: 0.8
         });
 
-        // 2. Mírně odložené zobrazení okna, aby se zamezilo záseku
         setTimeout(() => {
           openModal(point);
         }, 100);
