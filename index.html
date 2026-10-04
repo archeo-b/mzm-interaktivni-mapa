@@ -118,7 +118,7 @@
       }
     }
 
-    /* --- STYLOVÁNÍ POSUVNÍKU (SLIDERU) --- */
+    /* --- SUBTILNÍ STYLOVÁNÍ POSUVNÍKU (SLIDERU) --- */
     input[type=range] {
       -webkit-appearance: none;
       width: 100%;
@@ -131,29 +131,29 @@
 
     input[type=range]::-webkit-slider-runnable-track {
       width: 100%;
-      height: 8px;
+      height: 4px;
       cursor: pointer;
       background: #334155;
-      border-radius: 4px;
-      border: 1px solid #475569;
+      border-radius: 2px;
+      border: none;
     }
 
     input[type=range]::-webkit-slider-thumb {
-      height: 22px;
-      width: 22px;
+      height: 14px;
+      width: 14px;
       border-radius: 50%;
       background: #3b82f6;
       border: 2px solid #ffffff;
       cursor: pointer;
       -webkit-appearance: none;
-      margin-top: -7px;
-      box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
-      transition: background-color 0.15s ease;
+      margin-top: -5px;
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+      transition: transform 0.15s ease, background-color 0.15s ease;
     }
 
     input[type=range]::-webkit-slider-thumb:hover {
       background: #60a5fa;
-      transform: scale(1.1);
+      transform: scale(1.2);
     }
 
     /* --- SCROLLBAR --- */
@@ -208,72 +208,71 @@
 
   <div id="map"></div>
 
-  <!-- INTERAKTIVNÍ ČASOVÁ OSA (TAHACÍ POSUVNÍK NAD MAPOU) -->
-  <div class="absolute bottom-5 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-5xl pointer-events-auto">
-    <div class="bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-2xl p-4 shadow-2xl flex flex-col gap-3">
+  <!-- KOMPAKTNÍ NENÁPADNÁ ČASOVÁ OSA -->
+  <div class="absolute bottom-3 left-1/2 -translate-x-1/2 z-40 w-[90%] max-w-2xl pointer-events-auto">
+    <div class="bg-slate-950/75 backdrop-blur-md border border-slate-700/50 rounded-xl px-3 py-2 shadow-xl flex flex-col gap-1.5">
       
-      <!-- HORNÍ ŘÁDEK: Tlačítko Zobrazit vše + Přehrávání + Zobrazení aktuálního roku / období -->
-      <div class="flex items-center justify-between gap-3">
-        <div class="flex items-center gap-2">
+      <!-- HORNÍ ŘÁDEK: Ovládací tlačítka a Indikátor -->
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-1.5">
           <!-- Tlačítko Zobrazit vše -->
-          <button id="btn-all" onclick="showAllPoints()" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition border border-blue-400/30 flex items-center gap-1.5 shadow-md">
-            <i data-lucide="layers" class="w-4 h-4"></i>
+          <button id="btn-all" onclick="showAllPoints()" class="px-2.5 py-1 bg-blue-600/90 hover:bg-blue-500 text-white rounded-lg text-[11px] font-semibold transition border border-blue-400/20 flex items-center gap-1 shadow-sm">
+            <i data-lucide="layers" class="w-3.5 h-3.5"></i>
             <span>Zobrazit vše</span>
           </button>
 
-          <!-- Tlačítko Play / Pause -->
-          <button id="btn-play" onclick="togglePlay()" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition border border-slate-700 flex items-center gap-1.5">
-            <i id="play-icon" data-lucide="play" class="w-4 h-4 text-emerald-400"></i>
+          <!-- Tlačítko Přehřát / Pauza -->
+          <button id="btn-play" onclick="togglePlay()" class="px-2.5 py-1 bg-slate-800/80 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-semibold transition border border-slate-700/60 flex items-center gap-1">
+            <i id="play-icon" data-lucide="play" class="w-3.5 h-3.5 text-emerald-400"></i>
             <span id="play-text">Přehrát</span>
           </button>
         </div>
 
-        <!-- Ukazatel aktuálního roku a LT stupně -->
-        <div class="flex items-center gap-3">
-          <span id="currentPeriodLabel" class="px-3 py-1 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg text-xs font-bold">
+        <!-- Ukazatel obdobu a přesného roku -->
+        <div class="flex items-center gap-2">
+          <span id="currentPeriodLabel" class="px-2 py-0.5 bg-amber-500/15 text-amber-300 border border-amber-500/20 rounded text-[10px] font-bold">
             Všechna období
           </span>
-          <span id="currentYearLabel" class="text-sm font-extrabold text-white tracking-wider">
+          <span id="currentYearLabel" class="text-xs font-bold text-slate-200 tracking-wide">
             460 př. n. l.
           </span>
         </div>
       </div>
 
-      <!-- PROSTŘEDNÍ ŘÁDEK: TAŽNÝ POSUVNÍK (SLIDER) -->
-      <div class="relative px-1 my-1">
-        <!-- Min roku = -460 (460 př.n.l.), Max roku = -38 (38 př.n.l.) -->
-        <input type="range" id="timeSlider" min="-460" max="-38" value="-460" step="1" oninput="onSliderInput(this.value)">
+      <!-- PROSTŘEDNÍ ŘÁDEK: POSUVNÍK (Min = -460 [470/450 př.n.l.], Max = -25 [30/20 př.n.l.]) -->
+      <div class="relative px-0.5">
+        <input type="range" id="timeSlider" min="-460" max="-25" value="-460" step="1" oninput="onSliderInput(this.value)">
       </div>
 
-      <!-- SPODNÍ ŘÁDEK: LEGENDA S ÚSEKY LT -->
-      <div class="grid grid-cols-7 text-[10px] sm:text-xs text-slate-400 font-medium text-center border-t border-slate-800 pt-2 gap-1">
-        <div class="hover:text-blue-400 cursor-pointer transition" onclick="setYear(-460)">
-          <div class="font-bold text-slate-200">LT A</div>
-          <div class="text-[9px] text-slate-500">460–395</div>
+      <!-- SPODNÍ ŘÁDEK: LEGENDA ÚSEKŮ DLE PŘESNÝCH LETOPOČTŮ -->
+      <div class="grid grid-cols-7 text-[9px] text-slate-400 font-medium text-center border-t border-slate-800/60 pt-1">
+        <div class="hover:text-blue-300 cursor-pointer transition" onclick="setYear(-460)">
+          <div class="font-bold text-slate-300">LT A</div>
+          <div class="text-[8px] text-slate-500">460–395</div>
         </div>
-        <div class="hover:text-blue-400 cursor-pointer transition" onclick="setYear(-395)">
-          <div class="font-bold text-slate-200">LT B1</div>
-          <div class="text-[9px] text-slate-500">395–325</div>
+        <div class="hover:text-blue-300 cursor-pointer transition" onclick="setYear(-395)">
+          <div class="font-bold text-slate-300">LT B1</div>
+          <div class="text-[8px] text-slate-500">395–325</div>
         </div>
-        <div class="hover:text-blue-400 cursor-pointer transition" onclick="setYear(-325)">
-          <div class="font-bold text-slate-200">LT B2</div>
-          <div class="text-[9px] text-slate-500">325–255</div>
+        <div class="hover:text-blue-300 cursor-pointer transition" onclick="setYear(-325)">
+          <div class="font-bold text-slate-300">LT B2</div>
+          <div class="text-[8px] text-slate-500">325–255</div>
         </div>
-        <div class="hover:text-blue-400 cursor-pointer transition" onclick="setYear(-255)">
-          <div class="font-bold text-slate-200">LT C1</div>
-          <div class="text-[9px] text-slate-500">255–170</div>
+        <div class="hover:text-blue-300 cursor-pointer transition" onclick="setYear(-255)">
+          <div class="font-bold text-slate-300">LT C1</div>
+          <div class="text-[8px] text-slate-500">255–170</div>
         </div>
-        <div class="hover:text-blue-400 cursor-pointer transition" onclick="setYear(-170)">
-          <div class="font-bold text-slate-200">LT C2</div>
-          <div class="text-[9px] text-slate-500">170–120</div>
+        <div class="hover:text-blue-300 cursor-pointer transition" onclick="setYear(-170)">
+          <div class="font-bold text-slate-300">LT C2</div>
+          <div class="text-[8px] text-slate-500">170–120</div>
         </div>
-        <div class="hover:text-blue-400 cursor-pointer transition" onclick="setYear(-120)">
-          <div class="font-bold text-slate-200">LT D1</div>
-          <div class="text-[9px] text-slate-500">120–65</div>
+        <div class="hover:text-blue-300 cursor-pointer transition" onclick="setYear(-120)">
+          <div class="font-bold text-slate-300">LT D1</div>
+          <div class="text-[8px] text-slate-500">120–65</div>
         </div>
-        <div class="hover:text-blue-400 cursor-pointer transition" onclick="setYear(-65)">
-          <div class="font-bold text-slate-200">LT D2</div>
-          <div class="text-[9px] text-slate-500">65–38</div>
+        <div class="hover:text-blue-300 cursor-pointer transition" onclick="setYear(-65)">
+          <div class="font-bold text-slate-300">LT D2</div>
+          <div class="text-[8px] text-slate-500">65–25</div>
         </div>
       </div>
 
@@ -342,7 +341,9 @@
       tileSize: 256
     };
 
-    // Definice stupňů s reprezentativními středními roky pro výpočet intervalů
+    // PŘESNÉ DEFINICE STUPŇŮ PODLE ZADÁNÍ:
+    // LT A: 470/450 až 400/390 | LT B1: 400/390 až 330/320 | LT B2: 330/320 až 260/250
+    // LT C1: 260/250 až 175/165 | LT C2: 175/165 až 125/115 | LT D1: 125/115 až 70/60 | LT D2: 70/60 až 30/20
     const PERIOD_BOUNDS = [
       { name: "LT A",  startYear: -460, endYear: -395 },
       { name: "LT B1", startYear: -395, endYear: -325 },
@@ -350,7 +351,7 @@
       { name: "LT C1", startYear: -255, endYear: -170 },
       { name: "LT C2", startYear: -170, endYear: -120 },
       { name: "LT D1", startYear: -120, endYear: -65 },
-      { name: "LT D2", startYear: -65,  endYear: -38 }
+      { name: "LT D2", startYear: -65,  endYear: -25 }
     ];
 
     let map;
@@ -369,7 +370,6 @@
 
     let isPlaying = false;
     let playInterval = null;
-    let isFilterActive = false;
 
     async function loadBoundsFromJgw() {
       const statusEl = document.getElementById('loaderStatus');
@@ -508,7 +508,6 @@
 
       const str = String(dateStr).toUpperCase().replace(/\s+/g, '');
 
-      // Zjištění rozsahu podle nalezených stupňů (např. LT B2 - LT C2)
       let foundIndices = [];
       PERIOD_BOUNDS.forEach((p, idx) => {
         const code = p.name.replace(/\s+/g, '');
@@ -526,7 +525,7 @@
         };
       }
 
-      return { start: -460, end: -38 };
+      return { start: -460, end: -25 };
     }
 
     async function loadPointsFromExcel() {
@@ -595,13 +594,10 @@
 
     /* --- FILTROVÁNÍ MAPY PODLE ČASU --- */
     function updateMapPointsVisibility(currentYear) {
-      isFilterActive = true;
-
       pointsData.forEach(pt => {
         const marker = markersMap.get(pt.id);
         if (!marker) return;
 
-        // Kontrola, zda rok spadá do existence lokality
         const isVisible = (currentYear >= pt.startYear && currentYear <= pt.endYear);
 
         const element = marker.getElement();
@@ -615,7 +611,6 @@
           }
         }
 
-        // Pokud skrytá lokalita měla otevřené detailní okno, zavřeme ho
         if (!isVisible && activeMarkerId === pt.id) {
           closeModal();
         }
@@ -641,7 +636,6 @@
       const absYear = Math.abs(year);
       yearLabel.innerText = `${absYear} př. n. l.`;
 
-      // Najít odpovídající období
       const currentPeriod = PERIOD_BOUNDS.find(p => year >= p.startYear && year <= p.endYear);
       if (currentPeriod) {
         periodLabel.innerText = currentPeriod.name;
@@ -652,10 +646,9 @@
 
     function showAllPoints() {
       if (isPlaying) stopPlay();
-      isFilterActive = false;
 
       document.getElementById('currentPeriodLabel').innerText = 'Všechna období';
-      document.getElementById('currentYearLabel').innerText = '460 – 38 př. n. l.';
+      document.getElementById('currentYearLabel').innerText = '460 – 25 př. n. l.';
 
       pointsData.forEach(pt => {
         const marker = markersMap.get(pt.id);
@@ -693,7 +686,7 @@
         if (currentVal >= parseInt(slider.max, 10)) {
           currentVal = parseInt(slider.min, 10);
         } else {
-          currentVal += 2; // Rychlost posunu (roky za krok)
+          currentVal += 2;
         }
         slider.value = currentVal;
         onSliderInput(currentVal);
