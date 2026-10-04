@@ -159,23 +159,28 @@
     .custom-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 8px; }
     .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 8px; }
 
-    /* --- PŘECHOD PANELU (ZPOMALENO NA 0.8s) --- */
+    /* --- EXTRA PLYNULÝ PŘECHOD KARTY/TABULKY (1.4s) --- */
     #sidePanelOverlay {
-      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     #sidePanelCard {
-      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), 
+                  transform 1.4s cubic-bezier(0.16, 1, 0.3, 1), 
+                  filter 1.4s cubic-bezier(0.16, 1, 0.3, 1);
+      will-change: transform, opacity, filter;
     }
 
     .mist-hidden {
       opacity: 0 !important;
-      transform: scale(0.95) translateY(16px) !important;
+      transform: scale(0.92) translateY(28px) !important;
+      filter: blur(12px) !important;
     }
 
     .mist-visible {
       opacity: 1 !important;
       transform: scale(1) translateY(0) !important;
+      filter: blur(0px) !important;
     }
 
     /* --- SPOJOVACÍ LINKA --- */
@@ -360,7 +365,7 @@
     function smoothSetView(targetCenter, targetZoom) {
       map.flyTo(targetCenter, targetZoom, {
         animate: true,
-        duration: 1.8, // Délka animace v sekundách (pomalý, elegantní přechod)
+        duration: 1.8,
         easeLinearity: 0.25
       });
     }
@@ -795,7 +800,7 @@
         overlay.classList.remove('opacity-0');
         card.classList.remove('mist-hidden');
         card.classList.add('mist-visible');
-        setTimeout(updateConnectorLine, 600);
+        setTimeout(updateConnectorLine, 1000);
       });
     }
 
@@ -853,7 +858,7 @@
 
       setTimeout(() => {
         overlay.classList.add('hidden');
-      }, 800);
+      }, 1400);
 
       setActiveMarker(null, null);
 
