@@ -134,14 +134,12 @@
       will-change: opacity, transform, filter;
     }
 
-    /* Stav v husté mlze (neprůhledný, rozmazaný, zvětšený) */
     .mist-hidden {
       opacity: 0 !important;
-      transform: scale(1.06) translateY(0) !important;
+      transform: scale(1.05) translateY(0) !important;
       filter: blur(25px) !important;
     }
 
-    /* Plně zaostřený stav */
     .mist-visible {
       opacity: 1 !important;
       transform: scale(1) translateY(0) !important;
@@ -188,11 +186,10 @@
     <circle id="connectorDot" r="4" fill="#f59e0b" class="shadow-lg" />
   </svg>
 
-  <!-- BOČNÍ INFORMAČNÍ PANEL (VÝRAZNĚ ŠIRŠÍ PRO MONITORY) -->
+  <!-- BOČNÍ INFORMAČNÍ PANEL -->
   <div id="sidePanelOverlay" class="hidden fixed inset-0 z-50 flex justify-end p-3 sm:p-6 bg-slate-950/30 opacity-0 pointer-events-auto">
     <div class="absolute inset-0" onclick="closeModal()"></div>
 
-    <!-- Šířka zabírá téměř polovinu obrazovky (48vw, min. 600px, max. 1100px) -->
     <div id="sidePanelCard" class="relative z-10 w-full sm:w-[48vw] sm:min-w-[600px] sm:max-w-[1100px] h-full sm:h-auto bg-slate-900/80 backdrop-blur-md border-l sm:border border-slate-700/60 sm:rounded-3xl shadow-2xl text-white overflow-hidden mist-hidden flex flex-col max-h-full sm:max-h-[92vh] my-auto">
       
       <!-- HLAVIČKA -->
@@ -454,7 +451,7 @@
       }
     }
 
-    /* --- VYKRESLENÍ DYNAMICKÉ LINKY --- */
+    /* --- VYKRESLENÍ SPOJOVACÍ ČÁRY --- */
     function updateConnectorLine() {
       const svgContainer = document.getElementById('connectorSvg');
       const line = document.getElementById('connectorLine');
@@ -497,26 +494,34 @@
       let targetCenter = latLng;
 
       if (!isMobile) {
-        // Zjištění reálné šířky panelu
         const card = document.getElementById('sidePanelCard');
-        const cardWidth = card ? card.offsetWidth : window.innerWidth * 0.48;
+        const cardWidth = card ? card.offsetWidth : (window.innerWidth * 0.48);
         
-        // SPRÁVNÝ VÝPOČET: Odsuň střed mapy DOPRAVA o polovinu šířky panelu,
-        // čímž samotný BOD na obrazovce posuneme DOLEVA do nepromítané části!
-        const shiftX = cardWidth / 2;
+        // PŘESNÝ POSUN:
+        // Cílová pozice bodu na obrazovce má být ve středu levé viditelné části: (window.innerWidth - cardWidth) / 2
+        const targetPointScreenX = (window.innerWidth - cardWidth) / 2;
+        const targetPointScreenY = window.innerHeight / 2;
 
-        const pointPx = map.project(latLng, targetZoom);
-        const offsetPx = L.point(-shiftX, 0); // Znaménko mínus posune bod do levé poloviny
-        targetCenter = map.unproject(pointPx.add(offsetPx), targetZoom);
+        // Převedeme zeměpisné souřadnice bodu na souřadnice v pixelech při novém zoomu
+        const pointPixelAtTargetZoom = map.project(latLng, targetZoom);
+        
+        // Vypočteme, kde musí ležet střed mapy (v pixelech)
+        const centerOffset = L.point(
+          (window.innerWidth / 2) - targetPointScreenX,
+          (window.innerHeight / 2) - targetPointScreenY
+        );
+
+        const targetCenterPixel = pointPixelAtTargetZoom.add(centerOffset);
+        targetCenter = map.unproject(targetCenterPixel, targetZoom);
       }
+
+      setActiveMarker(point.id, latLng);
+      openModal(point);
 
       map.flyTo(targetCenter, targetZoom, {
         animate: true,
         duration: 1.0
       });
-
-      setActiveMarker(point.id, latLng);
-      openModal(point);
     }
 
     function openModal(point) {
