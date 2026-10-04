@@ -19,7 +19,6 @@
       margin: 0;
       padding: 0;
       overflow: hidden;
-      background-color: #020617;
       font-family: system-ui, -apple-system, sans-serif;
     }
 
@@ -30,11 +29,6 @@
       width: 100vw;
       height: 100vh;
       z-index: 1;
-      background-color: #020617 !important;
-    }
-
-    .leaflet-container {
-      background-color: #020617 !important;
     }
 
     /* Plynulé podání dlaždic bez spár */
@@ -50,7 +44,7 @@
       transform: translate3d(0, 0, 0);
     }
 
-    /* --- STYLOVÁNÍ A ANIMACE BODŮ (OPRAVENO: Plynulé mizení a objevování) --- */
+    /* --- STYLOVÁNÍ A ANIMACE BODŮ --- */
     .custom-dot-marker {
       background: none;
       border: none;
@@ -59,7 +53,6 @@
       pointer-events: auto;
     }
 
-    /* Třída pro skrytí bodu s plynulým přechodem */
     .custom-dot-marker.dot-hidden {
       opacity: 0 !important;
       pointer-events: none !important;
@@ -127,7 +120,7 @@
       }
     }
 
-    /* --- SUBTILNÍ STYLOVÁNÍ POSUVNÍKU (SLIDERU) --- */
+    /* --- STYLOVÁNÍ POSUVNÍKU --- */
     input[type=range] {
       -webkit-appearance: none;
       width: 100%;
@@ -170,7 +163,7 @@
     .custom-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 8px; }
     .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 8px; }
 
-    /* --- HARDWAROVĚ OPTIMALIZOVANÝ PŘECHOD PANELU --- */
+    /* --- PŘECHOD PANELU --- */
     #sidePanelOverlay {
       transition: opacity 0.4s ease-out;
     }
@@ -190,7 +183,7 @@
       transform: scale(1) translateY(0) !important;
     }
 
-    /* --- GRADIENTOVÁ SPOJOVACÍ LINKA --- */
+    /* --- SPOJOVACÍ LINKA --- */
     #connectorLine {
       stroke-dasharray: 8 4;
       animation: dash-animation 20s linear infinite;
@@ -250,7 +243,7 @@
         <input type="range" id="timeSlider" min="-460" max="-25" value="-460" step="1" oninput="onSliderInput(this.value)">
       </div>
 
-      <!-- SPODNÍ ŘÁDEK: ZVĚTŠENÁ LEGENDA ÚSEKŮ -->
+      <!-- SPODNÍ ŘÁDEK: LEGENDA ÚSEKŮ -->
       <div class="grid grid-cols-7 text-xs text-slate-300 font-medium text-center border-t border-slate-800/80 pt-1.5 gap-0.5">
         <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-460)">
           <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT A</div>
@@ -285,7 +278,7 @@
     </div>
   </div>
 
-  <!-- SVG VRSTVA PRO SPOJOVACÍ LINKU -->
+  <!-- SVG SPOJOVACÍ LINKA -->
   <svg id="connectorSvg" class="fixed inset-0 w-full h-full pointer-events-none z-40 hidden">
     <defs>
       <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -412,7 +405,8 @@
         L.latLng(ne[1], ne[0])
       );
 
-      MAP_BOUNDS = RAW_BOUNDS.pad(0.03);
+      /* Přesné hranice mapy zamezující přesahu a černým pruhům */
+      MAP_BOUNDS = RAW_BOUNDS;
       barEl.style.width = '100%';
     }
 
@@ -448,8 +442,10 @@
         await loadBoundsFromJgw();
 
         const loader = document.getElementById('loaderScreen');
-        loader.classList.add('opacity-0');
-        setTimeout(() => loader.style.display = 'none', 500);
+        if (loader) {
+          loader.classList.add('opacity-0');
+          setTimeout(() => loader.style.display = 'none', 500);
+        }
 
         map = L.map('map', {
           zoomControl: false,
@@ -457,29 +453,33 @@
           minZoom: CONFIG.minZoom,
           maxZoom: CONFIG.maxZoom,
           maxBounds: MAP_BOUNDS,
-          maxBoundsViscosity: 1.0,
+          maxBoundsViscosity: 1.0, /* Striktní udržení výřezu uvnitř hranic obrázku */
           bounceAtZoomLimits: false,
-          fadeAnimation: false,
+          fadeAnimation: true,
           zoomAnimation: true
         });
 
-        // Podkladové vrstvy
+        // 1. VYTVOŘENÍ SPODNÍ VRSTVY PRO TRVALÝ PODKLADOVÝ OBRÁZEK
+        map.createPane('bgPane');
+        map.getPane('bgPane').style.zIndex = 100;
+
+        // 2. VLOŽENÍ TRVALÉHO MAPOVÉHO PODKLADU (podklad.jpeg)
         L.imageOverlay('./podklad.jpeg', RAW_BOUNDS, {
-          pane: 'tilePane',
-          zIndex: 1,
-          interactive: false
+          pane: 'bgPane',
+          interactive: false,
+          opacity: 1
         }).addTo(map);
 
+        // 3. VLOŽENÍ DYNAMICKÝCH DLAŽDIC (vybraný detail)
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
           minZoom: CONFIG.minZoom,
           maxZoom: CONFIG.maxZoom,
           tileSize: CONFIG.tileSize,
           noWrap: true,
-          keepBuffer: 6,
+          keepBuffer: 10,
           updateWhenIdle: false,
           updateWhenZooming: true,
-          pane: 'tilePane',
-          zIndex: 2,
+          unloadInvisibleTiles: false, /* Ponechá staré dlaždice v paměti při změně zoomu */
           bounds: RAW_BOUNDS
         }).addTo(map);
 
@@ -494,7 +494,7 @@
         });
 
         await loadPointsFromExcel();
-        lucide.createIcons();
+        if (window.lucide) lucide.createIcons();
 
       } catch (err) {
         console.error('Chyba při inicializaci aplikace:', err);
@@ -592,7 +592,6 @@
       });
     }
 
-    /* Plynulé zviditelňování a skrývání bodů */
     function updateMapPointsVisibility(currentYear) {
       pointsData.forEach(pt => {
         const marker = markersMap.get(pt.id);
@@ -859,7 +858,10 @@
       setActiveMarker(null, null);
 
       if (previousCenter !== null && previousZoom !== null) {
-        map.setView(previousCenter, previousZoom, { animate: true });
+        const minAllowedZoom = map.getMinZoom();
+        const safeZoom = Math.max(previousZoom, minAllowedZoom);
+
+        map.setView(previousCenter, safeZoom, { animate: true });
       }
     }
 
