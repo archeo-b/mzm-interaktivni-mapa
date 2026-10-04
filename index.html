@@ -50,11 +50,20 @@
       transform: translate3d(0, 0, 0);
     }
 
-    /* --- STYLOVÁNÍ A ANIMACE BODŮ (OPRAVENO: Bez přechodů na samotném markeru) --- */
+    /* --- STYLOVÁNÍ A ANIMACE BODŮ (OPRAVENO: Plynulé mizení a objevování) --- */
     .custom-dot-marker {
       background: none;
       border: none;
-      /* DŮLEŽITÉ: Není zde žádná CSS transition pro transform/position! */
+      transition: opacity 0.4s ease, transform 0.4s ease !important;
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* Třída pro skrytí bodu s plynulým přechodem */
+    .custom-dot-marker.dot-hidden {
+      opacity: 0 !important;
+      pointer-events: none !important;
+      transform: scale(0.5);
     }
 
     .dot-wrapper {
@@ -208,9 +217,9 @@
 
   <div id="map"></div>
 
-  <!-- KOMPAKTNÍ NENÁPADNÁ ČASOVÁ OSA -->
-  <div class="absolute bottom-3 left-1/2 -translate-x-1/2 z-40 w-[90%] max-w-2xl pointer-events-auto">
-    <div class="bg-slate-950/75 backdrop-blur-md border border-slate-700/50 rounded-xl px-3 py-2 shadow-xl flex flex-col gap-1.5">
+  <!-- KOMPAKTNÍ ČASOVÁ OSA -->
+  <div class="absolute bottom-3 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-2xl pointer-events-auto">
+    <div class="bg-slate-950/80 backdrop-blur-md border border-slate-700/50 rounded-xl px-3.5 py-2.5 shadow-xl flex flex-col gap-2">
       
       <!-- HORNÍ ŘÁDEK -->
       <div class="flex items-center justify-between gap-2">
@@ -227,10 +236,10 @@
         </div>
 
         <div class="flex items-center gap-2">
-          <span id="currentPeriodLabel" class="px-2 py-0.5 bg-amber-500/15 text-amber-300 border border-amber-500/20 rounded text-[10px] font-bold">
+          <span id="currentPeriodLabel" class="px-2 py-0.5 bg-amber-500/15 text-amber-300 border border-amber-500/20 rounded text-xs font-bold">
             Všechna období
           </span>
-          <span id="currentYearLabel" class="text-xs font-bold text-slate-200 tracking-wide">
+          <span id="currentYearLabel" class="text-xs sm:text-sm font-bold text-slate-200 tracking-wide">
             460 př. n. l.
           </span>
         </div>
@@ -241,35 +250,35 @@
         <input type="range" id="timeSlider" min="-460" max="-25" value="-460" step="1" oninput="onSliderInput(this.value)">
       </div>
 
-      <!-- SPODNÍ ŘÁDEK: LEGENDA ÚSEKŮ -->
-      <div class="grid grid-cols-7 text-[9px] text-slate-400 font-medium text-center border-t border-slate-800/60 pt-1">
-        <div class="hover:text-blue-300 cursor-pointer transition" onclick="setYear(-460)">
-          <div class="font-bold text-slate-300">LT A</div>
-          <div class="text-[8px] text-slate-500">460–395</div>
+      <!-- SPODNÍ ŘÁDEK: ZVĚTŠENÁ LEGENDA ÚSEKŮ -->
+      <div class="grid grid-cols-7 text-xs text-slate-300 font-medium text-center border-t border-slate-800/80 pt-1.5 gap-0.5">
+        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-460)">
+          <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT A</div>
+          <div class="text-[10px] sm:text-[11px] text-slate-400">460–395</div>
         </div>
-        <div class="hover:text-blue-300 cursor-pointer transition" onclick="setYear(-395)">
-          <div class="font-bold text-slate-300">LT B1</div>
-          <div class="text-[8px] text-slate-500">395–325</div>
+        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-395)">
+          <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT B1</div>
+          <div class="text-[10px] sm:text-[11px] text-slate-400">395–325</div>
         </div>
-        <div class="hover:text-blue-300 cursor-pointer transition" onclick="setYear(-325)">
-          <div class="font-bold text-slate-300">LT B2</div>
-          <div class="text-[8px] text-slate-500">325–255</div>
+        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-325)">
+          <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT B2</div>
+          <div class="text-[10px] sm:text-[11px] text-slate-400">325–255</div>
         </div>
-        <div class="hover:text-blue-300 cursor-pointer transition" onclick="setYear(-255)">
-          <div class="font-bold text-slate-300">LT C1</div>
-          <div class="text-[8px] text-slate-500">255–170</div>
+        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-255)">
+          <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT C1</div>
+          <div class="text-[10px] sm:text-[11px] text-slate-400">255–170</div>
         </div>
-        <div class="hover:text-blue-300 cursor-pointer transition" onclick="setYear(-170)">
-          <div class="font-bold text-slate-300">LT C2</div>
-          <div class="text-[8px] text-slate-500">170–120</div>
+        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-170)">
+          <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT C2</div>
+          <div class="text-[10px] sm:text-[11px] text-slate-400">170–120</div>
         </div>
-        <div class="hover:text-blue-300 cursor-pointer transition" onclick="setYear(-120)">
-          <div class="font-bold text-slate-300">LT D1</div>
-          <div class="text-[8px] text-slate-500">120–65</div>
+        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-120)">
+          <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT D1</div>
+          <div class="text-[10px] sm:text-[11px] text-slate-400">120–65</div>
         </div>
-        <div class="hover:text-blue-300 cursor-pointer transition" onclick="setYear(-65)">
-          <div class="font-bold text-slate-300">LT D2</div>
-          <div class="text-[8px] text-slate-500">65–25</div>
+        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-65)">
+          <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT D2</div>
+          <div class="text-[10px] sm:text-[11px] text-slate-400">65–25</div>
         </div>
       </div>
 
@@ -450,7 +459,7 @@
           maxBounds: MAP_BOUNDS,
           maxBoundsViscosity: 1.0,
           bounceAtZoomLimits: false,
-          fadeAnimation: false,  /* Vypnuto pro stabilní pozice při přibližování */
+          fadeAnimation: false,
           zoomAnimation: true
         });
 
@@ -476,7 +485,6 @@
 
         fitMapToCover();
 
-        // Sledování pohybu mapy pro plynulé překreslování spojovací čáry
         map.on('move zoom animemove viewreset', updateConnectorLine);
 
         window.addEventListener('resize', () => {
@@ -584,6 +592,7 @@
       });
     }
 
+    /* Plynulé zviditelňování a skrývání bodů */
     function updateMapPointsVisibility(currentYear) {
       pointsData.forEach(pt => {
         const marker = markersMap.get(pt.id);
@@ -594,9 +603,9 @@
 
         if (element) {
           if (isVisible) {
-            element.style.display = 'block';
+            element.classList.remove('dot-hidden');
           } else {
-            element.style.display = 'none';
+            element.classList.add('dot-hidden');
           }
         }
 
@@ -644,7 +653,7 @@
         if (!marker) return;
         const element = marker.getElement();
         if (element) {
-          element.style.display = 'block';
+          element.classList.remove('dot-hidden');
         }
       });
     }
@@ -742,7 +751,6 @@
     }
 
     function onPointClick(point, coords) {
-      // Uložení výchozího stavu pouze pokud ještě panel nebyl otevřen
       if (activeMarkerId === null) {
         previousZoom = map.getZoom();
         previousCenter = map.getCenter();
