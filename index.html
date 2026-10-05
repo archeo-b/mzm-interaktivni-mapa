@@ -29,12 +29,22 @@
       width: 100vw;
       height: 100vh;
       z-index: 1;
+      /* HW Akcelerace pro plynulý zoom */
+      will-change: transform;
+      transform: translateZ(0);
     }
 
-    /* Plynulé podání dlaždic */
+    /* Plynulé podání a transformace dlaždic bez sekání */
     .leaflet-tile {
-      image-rendering: auto !important;
+      will-change: transform, opacity;
+      transform: translateZ(0);
+      image-rendering: -webkit-optimize-contrast;
       outline: 1px solid transparent;
+    }
+
+    .leaflet-zoom-anim .leaflet-zoom-animated {
+      will-change: transform;
+      transition-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1) !important;
     }
 
     /* --- STYLOVÁNÍ A STABILNÍ PLYNULÁ ANIMACE BODŮ --- */
@@ -157,7 +167,7 @@
     .custom-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 8px; }
     .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 8px; }
 
-    /* --- ČISTÉ A PRODLOUŽENÉ ZOBRAZENÍ TABULKY (1.2s) --- */
+    /* --- ZOBRAZENÍ TABULKY (1.2s) --- */
     #sidePanelOverlay {
       transition: opacity 1.2s cubic-bezier(0.25, 0.1, 0.25, 1);
     }
@@ -355,11 +365,12 @@
     let playInterval = null;
     let isMapAnimating = false;
 
+    /* OPTIMALIZOVANÁ PLYNULÁ KAMERA */
     function smoothSetView(targetCenter, targetZoom) {
       map.flyTo(targetCenter, targetZoom, {
         animate: true,
-        duration: 1.8,
-        easeLinearity: 0.25
+        duration: 1.2,
+        easeLinearity: 0.1
       });
     }
 
@@ -442,6 +453,7 @@
           setTimeout(() => loader.style.display = 'none', 500);
         }
 
+        /* NASTAVENÍ MAPY PRO ROVNOMĚRNÝ ZOOM PROCES */
         map = L.map('map', {
           zoomControl: false,
           attributionControl: false,
@@ -451,7 +463,10 @@
           maxBoundsViscosity: 1.0,
           bounceAtZoomLimits: false,
           fadeAnimation: true,
-          zoomAnimation: true
+          zoomAnimation: true,
+          zoomSnap: 0.25,
+          wheelDebounceTime: 40,
+          updateWhenZooming: false
         });
 
         map.createPane('bgPane');
@@ -468,10 +483,10 @@
           maxZoom: CONFIG.maxZoom,
           tileSize: CONFIG.tileSize,
           noWrap: true,
-          keepBuffer: 10,
-          updateWhenIdle: false,
-          updateWhenZooming: true,
-          unloadInvisibleTiles: false,
+          keepBuffer: 6,
+          updateWhenIdle: true,
+          updateWhenZooming: false,
+          unloadInvisibleTiles: true,
           bounds: RAW_BOUNDS
         }).addTo(map);
 
