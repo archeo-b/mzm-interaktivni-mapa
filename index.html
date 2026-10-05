@@ -32,7 +32,7 @@
       background: #0f172a;
     }
 
-    /* Čisté vykreslování dlaždic bez náročných CSS filtrů */
+    /* Čisté a plynulé vykreslování dlaždic */
     .leaflet-tile {
       image-rendering: -webkit-optimize-contrast;
       outline: 1px solid transparent;
@@ -157,7 +157,7 @@
     .custom-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 8px; }
     .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 8px; }
 
-    /* --- ZOBRAZENÍ TABULKY (1.2s) --- */
+    /* --- ZOBRAZENÍ TABULKY --- */
     #sidePanelOverlay {
       transition: opacity 1.2s cubic-bezier(0.25, 0.1, 0.25, 1);
     }
@@ -196,7 +196,7 @@
   <div id="loaderScreen" class="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-6 text-white transition-opacity duration-500">
     <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
     <h2 class="text-xl font-bold mb-2">Načítání podkladové mapy...</h2>
-    <p id="loaderStatus" class="text-slate-400 text-sm mb-4">Výpočet geografických hranic...</p>
+    <p id="loaderStatus" class="text-slate-400 text-sm mb-4">Příprava mapy...</p>
     <div class="w-72 bg-slate-800 rounded-full h-3 overflow-hidden p-0.5 border border-slate-700">
       <div id="loaderBar" class="bg-blue-500 h-full rounded-full w-0 transition-all duration-100"></div>
     </div>
@@ -362,35 +362,12 @@
       });
     }
 
-    async function loadBoundsFromJgw() {
-      const statusEl = document.getElementById('loaderStatus');
-      const barEl = document.getElementById('loaderBar');
-
-      statusEl.innerText = 'Načítání podkladových dat...';
-      barEl.style.width = '30%';
-
-      const img = await new Promise((resolve, reject) => {
-        const image = new Image();
-        image.onload = () => resolve(image);
-        image.onerror = () => reject('Chyba: Soubor podklad.jpeg nebyl nalezen.');
-        image.src = './podklad.jpeg';
-      });
-
-      barEl.style.width = '60%';
-
-      const response = await fetch('./podklad.jgw');
-      if (!response.ok) throw new Error('Chyba: Soubor podklad.jgw nebyl nalezen.');
-      const text = await response.text();
-      const lines = text.trim().split(/\r?\n/).map(Number);
-
-      const [A, D, B, E, C, F] = lines;
-      const width = img.width;
-      const height = img.height;
-
-      const xMin = C - (A / 2);
-      const yMax = F - (E / 2);
-      const xMax = xMin + (width * A);
-      const yMin = yMax + (height * E);
+    // PŘÍMÉ NASTAVENÍ EXAKTNÍCH ZADANÝCH SOUNICKÝCH HRANIC (EPSG:3857)
+    function setupExactBounds() {
+      const xMin = 1784044.5050;
+      const xMax = 1983647.1794;
+      const yMin = 6269869.6426;
+      const yMax = 6413150.3221;
 
       const sw = proj4("EPSG:3857", "EPSG:4326", [xMin, yMin]);
       const ne = proj4("EPSG:3857", "EPSG:4326", [xMax, yMax]);
@@ -401,7 +378,9 @@
       );
 
       MAP_BOUNDS = RAW_BOUNDS;
-      barEl.style.width = '100%';
+
+      const barEl = document.getElementById('loaderBar');
+      if (barEl) barEl.style.width = '100%';
     }
 
     function calculateCoverZoom() {
@@ -433,7 +412,7 @@
 
     async function initMap() {
       try {
-        await loadBoundsFromJgw();
+        setupExactBounds();
 
         const loader = document.getElementById('loaderScreen');
         if (loader) {
@@ -454,7 +433,7 @@
           preferCanvas: true
         });
 
-        /* 1. PODKLADOVÝ OBRÁZEK JAKO SPODNÍ VRSTVA (NEBUDE ZDE PRÁZDNO PŘI NAČÍTÁNÍ) */
+        /* 1. PODKLADOVÝ OBRÁZEK ZAROVNANÝ PŘESNĚ PODLE RÁMCE */
         map.createPane('bgPane');
         map.getPane('bgPane').style.zIndex = 150;
 
@@ -464,13 +443,13 @@
           opacity: 1.0
         }).addTo(map);
 
-        /* 2. VYSOKOROZLIŠENÍ DLAŽDICE SPOLEHLIVĚ NAD PODKLADEM */
+        /* 2. DLAŽDICE BEZ DUPLICITY V MÍSTĚ BEZ VRSTVY PŘESNĚ NAD PODKLADEM */
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
           minZoom: CONFIG.minZoom,
           maxZoom: CONFIG.maxZoom,
           tileSize: CONFIG.tileSize,
           noWrap: true,
-          keepBuffer: 6,
+          keepBuffer: 2,
           updateWhenIdle: false,
           updateWhenZooming: true,
           unloadInvisibleTiles: true,
