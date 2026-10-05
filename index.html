@@ -44,7 +44,7 @@
       pointer-events: auto;
     }
 
-    /* Vnitřní obal řídí POUZE průhlednost (opacity), bez scale(), aby nedocházelo k posunům */
+    /* Vnitřní obal řídí POUZE průhlednost (opacity) */
     .dot-wrapper {
       position: relative;
       width: 20px;
@@ -52,13 +52,11 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      /* Plynulý přechod průhlednosti (1.8s) */
       transition: opacity 1.8s cubic-bezier(0.25, 0.1, 0.25, 1);
       opacity: 1;
       will-change: opacity;
     }
 
-    /* Skrytý stav - bod zůstává na absolutně přesné pozici, jen se plynule zneviditelní */
     .custom-dot-marker.dot-hidden .dot-wrapper {
       opacity: 0 !important;
       pointer-events: none !important;
@@ -159,28 +157,24 @@
     .custom-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 8px; }
     .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 8px; }
 
-    /* --- EXTRA PLYNULÝ PŘECHOD KARTY/TABULKY (1.4s) --- */
+    /* --- ČISTÉ A PRODLOUŽENÉ ZOBRAZENÍ TABULKY (1.2s) --- */
     #sidePanelOverlay {
-      transition: opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: opacity 1.2s cubic-bezier(0.25, 0.1, 0.25, 1);
     }
 
     #sidePanelCard {
-      transition: opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), 
-                  transform 1.4s cubic-bezier(0.16, 1, 0.3, 1), 
-                  filter 1.4s cubic-bezier(0.16, 1, 0.3, 1);
-      will-change: transform, opacity, filter;
+      transition: opacity 1.2s cubic-bezier(0.25, 0.1, 0.25, 1), 
+                  transform 1.2s cubic-bezier(0.25, 0.1, 0.25, 1);
     }
 
     .mist-hidden {
       opacity: 0 !important;
-      transform: scale(0.92) translateY(28px) !important;
-      filter: blur(12px) !important;
+      transform: scale(0.96) translateY(12px) !important;
     }
 
     .mist-visible {
       opacity: 1 !important;
       transform: scale(1) translateY(0) !important;
-      filter: blur(0px) !important;
     }
 
     /* --- SPOJOVACÍ LINKA --- */
@@ -361,7 +355,6 @@
     let playInterval = null;
     let isMapAnimating = false;
 
-    /* Pomocná funkce pro velmi plynulý a pomalý posun mapy */
     function smoothSetView(targetCenter, targetZoom) {
       map.flyTo(targetCenter, targetZoom, {
         animate: true,
@@ -800,7 +793,7 @@
         overlay.classList.remove('opacity-0');
         card.classList.remove('mist-hidden');
         card.classList.add('mist-visible');
-        setTimeout(updateConnectorLine, 1000);
+        setTimeout(updateConnectorLine, 800);
       });
     }
 
@@ -858,7 +851,7 @@
 
       setTimeout(() => {
         overlay.classList.add('hidden');
-      }, 1400);
+      }, 1200);
 
       setActiveMarker(null, null);
 
