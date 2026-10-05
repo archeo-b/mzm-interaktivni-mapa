@@ -38,7 +38,7 @@
       transition: filter 0.25s ease-out;
     }
 
-    /* Během zoomu/animace rozmažeme dlaždice, aby GPU nemusel přepočítávat textury v plné kvalitě */
+    /* Během zoomu/animace rozmažeme dlaždice pro maximální plynulost */
     .map-zooming .leaflet-tile-container {
       filter: blur(1.5px) brightness(0.95);
     }
@@ -452,7 +452,7 @@
           setTimeout(() => loader.style.display = 'none', 500);
         }
 
-        /* INICIALIZACE MAPY PRO ULTRA-PLYNULÝ POHYB (ZAKÁZÁNO NÁROČNÉ PŘEKRESLOVÁNÍ BĚHEM ANIMACE) */
+        /* INICIALIZACE MAPY PRO ULTRA-PLYNULÝ POHYB */
         map = L.map('map', {
           zoomControl: false,
           attributionControl: false,
@@ -466,7 +466,17 @@
           preferCanvas: true
         });
 
-        /* POUZE DLAŽDICE (Odstraněn duplicitní těžký Overlay podklad.jpeg) */
+        /* 1. VYTVOŘENÍ PODKLADOVÉ VRSTVY PRO ZÁLOHU (ZAJISTÍ ŽE NEBUDE PRÁZDNO) */
+        map.createPane('bgPane');
+        map.getPane('bgPane').style.zIndex = 150; // Umístění pod dlaždice
+
+        L.imageOverlay('./podklad.jpeg', RAW_BOUNDS, {
+          pane: 'bgPane',
+          interactive: false,
+          opacity: 1.0
+        }).addTo(map);
+
+        /* 2. DLAŽDICE VYKRESLOVANÉ NAD PODKLADEM */
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
           minZoom: CONFIG.minZoom,
           maxZoom: CONFIG.maxZoom,
@@ -481,7 +491,7 @@
 
         fitMapToCover();
 
-        /* EFEKT ROZMAZÁNÍ BĚHEM ZOOMU ZAJIŠŤUJÍCÍ ABSOLUTNÍ PLYNULOST (DOOSTŘENÍ PO ZASTAVENÍ) */
+        /* EFEKT ROZMAZÁNÍ BĚHEM ZOOMU PRO MAXIMÁLNÍ PLYNULOST */
         const mapContainer = document.getElementById('map');
 
         map.on('movestart zoomstart', () => {
@@ -728,3 +738,151 @@
       if (isMapAnimating) return;
 
       const svgContainer = document.getElementById('connectorSvg');
+      const line = document.getElementById('connectorLine');
+      const dot = document.getElementById('connectorDot');
+      const card = document.getElementById('sidePanelCard');
+
+      if (!activePointLatLng || window.innerWidth < 640 || card.classList.contains('mist-hidden')) {
+        hideConnectorLine();
+        return;
+      }
+
+      const pointPx = map.latLngToContainerPoint(activePointLatLng);
+      const cardRect = card.getBoundingClientRect();
+      const cardX = cardRect.left;
+      const cardY = cardRect.top + 60;
+
+      if (pointPx.x >= cardX) {
+        hideConnectorLine();
+        return;
+      }
+
+      svgContainer.classList.remove('hidden');
+
+      const controlX = pointPx.x + (cardX - pointPx.x) * 0.5;
+      const pathData = `M ${pointPx.x} ${pointPx.y} C ${controlX} ${pointPx.y}, ${controlX} ${cardY}, ${cardX} ${cardY}`;
+
+      line.setAttribute('d', pathData);
+      dot.setAttribute('cx', pointPx.x);
+      dot.setAttribute('cy', pointPx.y);
+    }
+
+    function onPointClick(point, coords) {
+      if (activeMarkerId === null) {
+        previousZoom = map.getZoom();
+        previousCenter = map.getCenter();
+      }
+
+      const targetZoom = Math.min(Math.max(map.getZoom(), CONFIG.targetZoom), CONFIG.maxZoom);
+      const latLng = L.latLng(coords[0], coords[1]);
+      const isMobile = window.innerWidth < 640;
+
+      setActiveMarker(point.id, latLng);
+
+      if (!isMobile) {
+        const card = document.getElementById('sidePanelCard');
+        const cardWidth = (card && card.offsetWidth > 0) ? card.offsetWidth : (window.innerWidth * 0.48);
+        const shiftX = cardWidth / 2;
+
+        const pointPx = map.project(latLng, targetZoom);
+        const newCenterPx = L.point(pointPx.x + shiftX, pointPx.y);
+        const targetCenter = map.unproject(newCenterPx, targetZoom);
+
+        smoothSetView(targetCenter, targetZoom);
+        openModal(point);
+      } else {
+        smoothSetView(latLng, targetZoom);
+        openModal(point);
+      }
+    }
+
+    function openModal(point) {
+      currentPoint = point;
+      currentPageIndex = 0;
+      document.getElementById('modalTitle').innerText = point.title;
+      document.getElementById('modalCategory').innerText = point.category || 'Detail';
+      updateModalPage();
+
+      const overlay = document.getElementById('sidePanelOverlay');
+      const card = document.getElementById('sidePanelCard');
+      
+      overlay.classList.remove('hidden');
+      
+      requestAnimationFrame(() => {
+        overlay.classList.remove('opacity-0');
+        card.classList.remove('mist-hidden');
+        card.classList.add('mist-visible');
+        setTimeout(updateConnectorLine, 800);
+      });
+    }
+
+    function formatTextToParagraphs(rawText) {
+      if (!rawText) return '';
+      return rawText.toString().split('|')
+        .map(p => {
+          const trimmed = p.trim().replace(/\r?\n/g, '<br>');
+          return trimmed ? `<p class="mb-3 text-justify last:mb-0">${trimmed}</p>` : '';
+        }).join('');
+    }
+
+    function updateModalPage() {
+      if (!currentPoint || !currentPoint.pages || currentPoint.pages.length === 0) return;
+      const page = currentPoint.pages[currentPageIndex];
+      const totalPages = currentPoint.pages.length;
+
+      document.getElementById('modalText').innerHTML = formatTextToParagraphs(page.text);
+
+      const imgContainer = document.getElementById('modalImageContainer');
+      const imgEl = document.getElementById('modalImage');
+      if (page.image) {
+        imgEl.src = page.image;
+        imgContainer.classList.remove('hidden');
+      } else {
+        imgContainer.classList.add('hidden');
+      }
+
+      document.getElementById('pageIndicator').innerText = `Strana ${currentPageIndex + 1} z ${totalPages}`;
+      document.getElementById('prevPageBtn').disabled = (currentPageIndex === 0);
+      document.getElementById('nextPageBtn').disabled = (currentPageIndex === totalPages - 1);
+
+      const footer = document.getElementById('modalFooter');
+      if (totalPages <= 1) footer.classList.add('hidden');
+      else footer.classList.remove('hidden');
+    }
+
+    function changePage(delta) {
+      if (!currentPoint) return;
+      const newIndex = currentPageIndex + delta;
+      if (newIndex >= 0 && newIndex < currentPoint.pages.length) {
+        currentPageIndex = newIndex;
+        updateModalPage();
+      }
+    }
+
+    function closeModal() {
+      const overlay = document.getElementById('sidePanelOverlay');
+      const card = document.getElementById('sidePanelCard');
+
+      hideConnectorLine();
+      overlay.classList.add('opacity-0');
+      card.classList.remove('mist-visible');
+      card.classList.add('mist-hidden');
+
+      setTimeout(() => {
+        overlay.classList.add('hidden');
+      }, 1200);
+
+      setActiveMarker(null, null);
+
+      if (previousCenter !== null && previousZoom !== null) {
+        const minAllowedZoom = map.getMinZoom();
+        const safeZoom = Math.max(previousZoom, minAllowedZoom);
+
+        smoothSetView(previousCenter, safeZoom);
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', initMap);
+  </script>
+</body>
+</html>
