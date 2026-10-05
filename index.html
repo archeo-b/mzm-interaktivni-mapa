@@ -32,23 +32,13 @@
       background: #0f172a;
     }
 
-    /* --- OPTIMALIZACE DLAŽDIC: Rychlé rozmazání při zoomu, doostření po dojezdu --- */
-    .leaflet-tile-container {
-      will-change: transform;
-      transition: filter 0.25s ease-out;
-    }
-
-    /* Během zoomu/animace rozmažeme dlaždice pro maximální plynulost */
-    .map-zooming .leaflet-tile-container {
-      filter: blur(1.5px) brightness(0.95);
-    }
-
+    /* Čisté vykreslování dlaždic bez náročných CSS filtrů */
     .leaflet-tile {
       image-rendering: -webkit-optimize-contrast;
       outline: 1px solid transparent;
     }
 
-    /* --- STYLOVÁNÍ A STABILNÍ PLYNULÁ ANIMACE BODŮ --- */
+    /* --- STYLOVÁNÍ A ANIMACE BODŮ --- */
     .custom-dot-marker {
       background: none;
       border: none;
@@ -363,7 +353,6 @@
 
     let isPlaying = false;
     let playInterval = null;
-    let isMapAnimating = false;
 
     function smoothSetView(targetCenter, targetZoom) {
       map.flyTo(targetCenter, targetZoom, {
@@ -452,7 +441,6 @@
           setTimeout(() => loader.style.display = 'none', 500);
         }
 
-        /* INICIALIZACE MAPY PRO ULTRA-PLYNULÝ POHYB */
         map = L.map('map', {
           zoomControl: false,
           attributionControl: false,
@@ -466,9 +454,9 @@
           preferCanvas: true
         });
 
-        /* 1. VYTVOŘENÍ PODKLADOVÉ VRSTVY PRO ZÁLOHU (ZAJISTÍ ŽE NEBUDE PRÁZDNO) */
+        /* 1. PODKLADOVÝ OBRÁZEK JAKO SPODNÍ VRSTVA (NEBUDE ZDE PRÁZDNO PŘI NAČÍTÁNÍ) */
         map.createPane('bgPane');
-        map.getPane('bgPane').style.zIndex = 150; // Umístění pod dlaždice
+        map.getPane('bgPane').style.zIndex = 150;
 
         L.imageOverlay('./podklad.jpeg', RAW_BOUNDS, {
           pane: 'bgPane',
@@ -476,33 +464,26 @@
           opacity: 1.0
         }).addTo(map);
 
-        /* 2. DLAŽDICE VYKRESLOVANÉ NAD PODKLADEM */
+        /* 2. VYSOKOROZLIŠENÍ DLAŽDICE SPOLEHLIVĚ NAD PODKLADEM */
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
           minZoom: CONFIG.minZoom,
           maxZoom: CONFIG.maxZoom,
           tileSize: CONFIG.tileSize,
           noWrap: true,
-          keepBuffer: 8,
-          updateWhenIdle: true,       // Načítá nové ostré dlaždice AŽ PO DOKONČENÍ pohybu
-          updateWhenZooming: false,   // Během zoomu NEPŘEKRESLUJE, pouze škáluje stávající dlaždice
+          keepBuffer: 6,
+          updateWhenIdle: false,
+          updateWhenZooming: true,
           unloadInvisibleTiles: true,
           bounds: RAW_BOUNDS
         }).addTo(map);
 
         fitMapToCover();
 
-        /* EFEKT ROZMAZÁNÍ BĚHEM ZOOMU PRO MAXIMÁLNÍ PLYNULOST */
-        const mapContainer = document.getElementById('map');
-
         map.on('movestart zoomstart', () => {
-          isMapAnimating = true;
-          mapContainer.classList.add('map-zooming');
           hideConnectorLine();
         });
 
         map.on('moveend zoomend', () => {
-          isMapAnimating = false;
-          mapContainer.classList.remove('map-zooming');
           updateConnectorLine();
         });
 
@@ -735,8 +716,6 @@
     }
 
     function updateConnectorLine() {
-      if (isMapAnimating) return;
-
       const svgContainer = document.getElementById('connectorSvg');
       const line = document.getElementById('connectorLine');
       const dot = document.getElementById('connectorDot');
