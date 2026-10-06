@@ -29,6 +29,7 @@
       padding: 0;
       overflow: hidden;
       font-family: system-ui, -apple-system, sans-serif;
+      background-color: #0f172a;
     }
 
     #map {
@@ -38,12 +39,37 @@
       width: 100vw;
       height: 100vh;
       z-index: 1;
+      background-color: transparent !important;
     }
 
-    /* Plynulé podání dlaždic */
+    /* --- OCHRANA PROTI PROBLIKÁVÁNÍ MŘÍŽKY DLAŽDIC & VRSTVENÍ --- */
+    .leaflet-pane {
+      will-change: transform;
+    }
+
+    .leaflet-tile-container {
+      will-change: transform;
+    }
+
     .leaflet-tile {
-      image-rendering: auto !important;
-      outline: 1px solid transparent;
+      image-rendering: -webkit-optimize-contrast !important;
+      image-rendering: crisp-edges !important;
+      outline: 1px solid transparent !important;
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
+      transform: translate3d(0,0,0);
+      /* Překrytí mikroskopických mezer vznikajících zaokrouhlováním pixelů */
+      margin: -1px !important;
+      padding: 1px !important;
+    }
+
+    /* Podkladový podklad.jpeg držíme vždy pod dlaždicemi */
+    .leaflet-pane.bgPane-pane {
+      z-index: 100 !important;
+    }
+
+    .leaflet-pane.tile-pane {
+      z-index: 200 !important;
     }
 
     /* --- STYLOVÁNÍ A STABILNÍ PLYNULÁ ANIMACE IKON --- */
@@ -53,7 +79,6 @@
       pointer-events: auto;
     }
 
-    /* Vnitřní obal řídí POUZE průhlednost (opacity) - Plynulý 1.8s přechod pro náběh I MIZENÍ */
     .dot-wrapper {
       position: relative;
       width: 52px;
@@ -66,18 +91,15 @@
       will-change: opacity;
     }
 
-    /* Výchozí stav pro plynulé pomalé vykreslení (fading in) */
     .dot-wrapper.dot-fading-in {
       opacity: 0 !important;
     }
 
-    /* Plynulé pomalé mizení (fading out) */
     .dot-wrapper.dot-hidden {
       opacity: 0 !important;
       pointer-events: none !important;
     }
 
-    /* Styl samotné kruhové ikony - plynulá změna měřítka dle zoomu i hoveru */
     .dot-image {
       width: 48px;
       height: 48px;
@@ -102,7 +124,6 @@
       box-shadow: 0 0 18px rgba(245, 158, 11, 0.9), 0 2px 14px rgba(0, 0, 0, 0.7);
     }
 
-    /* Badge s počtem pro shluky (cluster) - přizpůsobuje se měřítku ikony */
     .cluster-count-badge {
       position: absolute;
       top: -2px;
@@ -122,7 +143,6 @@
       transition: transform 0.3s ease-out;
     }
 
-    /* Efekt pulzu pod aktivní ikonou */
     .dot-pulse {
       position: absolute;
       width: 60px;
@@ -192,24 +212,42 @@
     .custom-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 8px; }
     .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 8px; }
 
-    /* --- ČISTÉ A PRODLOUŽENÉ ZOBRAZENÍ TABULKY (1.2s) --- */
+    /* --- STABILIZOVANÉ ZOBRAZENÍ TABULKY (PROBLIKÁVÁNÍ MOBILU FIXED) --- */
     #sidePanelOverlay {
-      transition: opacity 1.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+      transition: opacity 0.4s ease-out;
+      will-change: opacity;
     }
 
     #sidePanelCard {
-      transition: opacity 1.2s cubic-bezier(0.25, 0.1, 0.25, 1), 
-                  transform 1.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+      transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+      will-change: opacity, transform;
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
     }
 
     .mist-hidden {
       opacity: 0 !important;
       transform: scale(0.96) translateY(12px) !important;
+      pointer-events: none !important;
     }
 
     .mist-visible {
       opacity: 1 !important;
       transform: scale(1) translateY(0) !important;
+      pointer-events: auto !important;
+    }
+
+    /* Na mobilních zařízeních vypneme složité transformace, aby se zabránilo blikání Safari/Chrome renderu */
+    @media (max-width: 639px) {
+      #sidePanelCard {
+        transition: opacity 0.3s ease-out !important;
+      }
+      .mist-hidden {
+        transform: none !important;
+      }
+      .mist-visible {
+        transform: none !important;
+      }
     }
 
     /* --- SPOJOVACÍ LINKA --- */
@@ -225,7 +263,7 @@
     }
   </style>
 </head>
-<body class="relative w-full h-full select-none">
+<body class="relative w-full h-full select-none bg-slate-950">
 
   <!-- PRELOADER -->
   <div id="loaderScreen" class="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-6 text-white transition-opacity duration-500">
@@ -391,12 +429,10 @@
     let playInterval = null;
     let isMapAnimating = false;
 
-    /* Plynulá úprava velikosti ikon při změně zoomu */
     function updateIconScaleForZoom() {
       if (!map) return;
       const zoom = map.getZoom();
       
-      // Měřítko 1.0 při zoomu <= 10, postupně plynule zvětšuje až na 1.55 při max zoomu (15)
       let scale = 1;
       if (zoom > 10) {
         scale = 1 + ((zoom - 10) / (CONFIG.maxZoom - 10)) * 0.55;
@@ -524,7 +560,8 @@
           maxBoundsViscosity: 1.0,
           bounceAtZoomLimits: false,
           fadeAnimation: true,
-          zoomAnimation: true
+          zoomAnimation: true,
+          markerZoomAnimation: true
         });
 
         markerClusterGroup = L.markerClusterGroup({
@@ -533,6 +570,7 @@
           spiderfyOnMaxZoom: true,
           removeOutsideVisibleBounds: false,
           disableClusteringAtZoom: CONFIG.targetZoom,
+          animateAddingMarkers: true,
           iconCreateFunction: function(cluster) {
             const count = cluster.getChildCount();
             const childMarkers = cluster.getAllChildMarkers();
@@ -578,10 +616,10 @@
           maxZoom: CONFIG.maxZoom,
           tileSize: CONFIG.tileSize,
           noWrap: true,
-          keepBuffer: 1,
-          updateWhenIdle: true,
-          updateWhenZooming: false,
-          unloadInvisibleTiles: true,
+          keepBuffer: 3,
+          updateWhenIdle: false,
+          updateWhenZooming: true,
+          unloadInvisibleTiles: false,
           bounds: RAW_BOUNDS
         }).addTo(map);
 
@@ -723,6 +761,9 @@
     }
 
     function updateMapPointsVisibility(currentYear) {
+      const markersToAdd = [];
+      const markersToRemove = [];
+
       pointsData.forEach(pt => {
         const marker = markersMap.get(pt.id);
         if (!marker) return;
@@ -732,7 +773,7 @@
 
         if (isVisible) {
           if (!markerClusterGroup.hasLayer(marker)) {
-            markerClusterGroup.addLayer(marker);
+            markersToAdd.push(marker);
           }
           if (wrapperEl) {
             wrapperEl.classList.remove('dot-hidden');
@@ -741,13 +782,9 @@
         } else {
           if (wrapperEl) {
             wrapperEl.classList.add('dot-hidden');
-            setTimeout(() => {
-              if (wrapperEl.classList.contains('dot-hidden') && markerClusterGroup.hasLayer(marker)) {
-                markerClusterGroup.removeLayer(marker);
-              }
-            }, 1800);
-          } else if (markerClusterGroup.hasLayer(marker)) {
-            markerClusterGroup.removeLayer(marker);
+          }
+          if (markerClusterGroup.hasLayer(marker)) {
+            markersToRemove.push(marker);
           }
         }
 
@@ -755,6 +792,13 @@
           closeModal();
         }
       });
+
+      if (markersToRemove.length > 0) {
+        markerClusterGroup.removeLayers(markersToRemove);
+      }
+      if (markersToAdd.length > 0) {
+        markerClusterGroup.addLayers(markersToAdd);
+      }
     }
 
     function onSliderInput(val) {
@@ -790,18 +834,29 @@
       document.getElementById('currentPeriodLabel').innerText = 'Všechna období';
       document.getElementById('currentYearLabel').innerText = '460 – 25 př. n. l.';
 
+      const markersToAdd = [];
       pointsData.forEach(pt => {
         const marker = markersMap.get(pt.id);
         if (!marker) return;
+
         if (!markerClusterGroup.hasLayer(marker)) {
-          markerClusterGroup.addLayer(marker);
+          markersToAdd.push(marker);
         }
+
         const wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
         if (wrapperEl) {
           wrapperEl.classList.remove('dot-hidden');
           triggerSmoothFadeIn(wrapperEl);
         }
       });
+
+      if (markersToAdd.length > 0) {
+        markerClusterGroup.addLayers(markersToAdd);
+      }
+      
+      if (markerClusterGroup.refreshClusters) {
+        markerClusterGroup.refreshClusters();
+      }
     }
 
     function togglePlay() {
@@ -925,6 +980,7 @@
       }
     }
 
+    /* PLYNULÉ OTEVŘENÍ MODÁLU BEZ PROBLIKNUTÍ */
     function openModal(point) {
       currentPoint = point;
       currentPageIndex = 0;
@@ -937,11 +993,14 @@
 
       overlay.classList.remove('hidden');
 
+      // Dvojité requestAnimationFrame zajistí správné vykreslení a zahájení přechodu bez probliknutí
       requestAnimationFrame(() => {
-        overlay.classList.remove('opacity-0');
-        card.classList.remove('mist-hidden');
-        card.classList.add('mist-visible');
-        setTimeout(updateConnectorLine, 800);
+        requestAnimationFrame(() => {
+          overlay.classList.remove('opacity-0');
+          card.classList.remove('mist-hidden');
+          card.classList.add('mist-visible');
+          setTimeout(updateConnectorLine, 400);
+        });
       });
     }
 
@@ -988,6 +1047,7 @@
       }
     }
 
+    /* PLYNULÉ ZAVŘENÍ MODÁLU BEZ PROBLIKNUTÍ */
     function closeModal() {
       const overlay = document.getElementById('sidePanelOverlay');
       const card = document.getElementById('sidePanelCard');
@@ -999,7 +1059,7 @@
 
       setTimeout(() => {
         overlay.classList.add('hidden');
-      }, 1200);
+      }, 400);
 
       setActiveMarker(null, null);
 
