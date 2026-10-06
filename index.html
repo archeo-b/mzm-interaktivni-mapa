@@ -29,6 +29,7 @@
       padding: 0;
       overflow: hidden;
       font-family: system-ui, -apple-system, sans-serif;
+      background-color: #0f172a;
     }
 
     #map {
@@ -38,12 +39,25 @@
       width: 100vw;
       height: 100vh;
       z-index: 1;
+      background-color: #0f172a !important;
     }
 
-    /* Plynulé podání dlaždic */
+    /* Plynulé podání a skrytí hranic dlaždic při animaci */
     .leaflet-tile {
       image-rendering: auto !important;
       outline: 1px solid transparent;
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
+      transform: translate3d(0,0,0);
+    }
+
+    /* VRSTVENÍ PODKLADU A DLAŽDIC */
+    .leaflet-pane.bgPane-pane {
+      z-index: 100 !important;
+    }
+
+    .leaflet-pane.tile-pane {
+      z-index: 200 !important;
     }
 
     /* --- STYLOVÁNÍ A STABILNÍ PLYNULÁ ANIMACE IKON --- */
@@ -53,7 +67,7 @@
       pointer-events: auto;
     }
 
-    /* Vnitřní obal řídí POUZE průhlednost (opacity) - Plynulý 1.8s přechod pro náběh I MIZENÍ */
+    /* Vnitřní obal řídí POUZE průhlednost (opacity) */
     .dot-wrapper {
       position: relative;
       width: 52px;
@@ -77,7 +91,7 @@
       pointer-events: none !important;
     }
 
-    /* Styl samotné kruhové ikony - plynulá změna měřítka dle zoomu i hoveru */
+    /* Styl samotné kruhové ikony */
     .dot-image {
       width: 48px;
       height: 48px;
@@ -102,7 +116,7 @@
       box-shadow: 0 0 18px rgba(245, 158, 11, 0.9), 0 2px 14px rgba(0, 0, 0, 0.7);
     }
 
-    /* Badge s počtem pro shluky (cluster) - přizpůsobuje se měřítku ikony */
+    /* Badge s počtem pro shluky (cluster) */
     .cluster-count-badge {
       position: absolute;
       top: -2px;
@@ -192,7 +206,7 @@
     .custom-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 8px; }
     .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 8px; }
 
-    /* --- ČISTÉ A PRODLOUŽENÉ ZOBRAZENÍ TABULKY (1.2s) --- */
+    /* --- TABULKA ZOBRAZENÍ --- */
     #sidePanelOverlay {
       transition: opacity 1.2s cubic-bezier(0.25, 0.1, 0.25, 1);
     }
@@ -225,7 +239,7 @@
     }
   </style>
 </head>
-<body class="relative w-full h-full select-none">
+<body class="relative w-full h-full select-none bg-slate-950">
 
   <!-- PRELOADER -->
   <div id="loaderScreen" class="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-6 text-white transition-opacity duration-500">
@@ -391,17 +405,17 @@
     let playInterval = null;
     let isMapAnimating = false;
 
+    // Mapa časovačů pro plynulé odstraňování
+    let pointFadeTimeouts = new Map();
+
     /* Plynulá úprava velikosti ikon při změně zoomu */
     function updateIconScaleForZoom() {
       if (!map) return;
       const zoom = map.getZoom();
-      
-      // Měřítko 1.0 při zoomu <= 10, postupně plynule zvětšuje až na 1.55 při max zoomu (15)
       let scale = 1;
       if (zoom > 10) {
         scale = 1 + ((zoom - 10) / (CONFIG.maxZoom - 10)) * 0.55;
       }
-      
       document.documentElement.style.setProperty('--icon-scale', scale.toFixed(2));
     }
 
@@ -573,15 +587,16 @@
           opacity: 1
         }).addTo(map);
 
+        /* OPRAVA HRANIC DLAŽDIC PŘI ANIMACI ZOOOMU */
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
           minZoom: CONFIG.minZoom,
           maxZoom: CONFIG.maxZoom,
           tileSize: CONFIG.tileSize,
           noWrap: true,
-          keepBuffer: 1,
-          updateWhenIdle: true,
-          updateWhenZooming: false,
-          unloadInvisibleTiles: true,
+          keepBuffer: 6,
+          updateWhenIdle: false,
+          updateWhenZooming: true,
+          unloadInvisibleTiles: false,
           bounds: RAW_BOUNDS
         }).addTo(map);
 
@@ -731,6 +746,11 @@
         const wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
 
         if (isVisible) {
+          if (pointFadeTimeouts.has(pt.id)) {
+            clearTimeout(pointFadeTimeouts.get(pt.id));
+            pointFadeTimeouts.delete(pt.id);
+          }
+
           if (!markerClusterGroup.hasLayer(marker)) {
             markerClusterGroup.addLayer(marker);
           }
@@ -741,11 +761,15 @@
         } else {
           if (wrapperEl) {
             wrapperEl.classList.add('dot-hidden');
-            setTimeout(() => {
-              if (wrapperEl.classList.contains('dot-hidden') && markerClusterGroup.hasLayer(marker)) {
-                markerClusterGroup.removeLayer(marker);
-              }
-            }, 1800);
+            if (!pointFadeTimeouts.has(pt.id)) {
+              const tid = setTimeout(() => {
+                if (wrapperEl.classList.contains('dot-hidden') && markerClusterGroup.hasLayer(marker)) {
+                  markerClusterGroup.removeLayer(marker);
+                }
+                pointFadeTimeouts.delete(pt.id);
+              }, 1800);
+              pointFadeTimeouts.set(pt.id, tid);
+            }
           } else if (markerClusterGroup.hasLayer(marker)) {
             markerClusterGroup.removeLayer(marker);
           }
@@ -784,24 +808,35 @@
       }
     }
 
+    /* SPOLEHLIVÉ ZOBRAZENÍ VŠECH BODŮ BEZ MIZENÍ LOKALIT */
     function showAllPoints() {
       if (isPlaying) stopPlay();
 
       document.getElementById('currentPeriodLabel').innerText = 'Všechna období';
       document.getElementById('currentYearLabel').innerText = '460 – 25 př. n. l.';
 
+      // Zrušíme všechna naplánovaná odstraňování
+      pointFadeTimeouts.forEach(tid => clearTimeout(tid));
+      pointFadeTimeouts.clear();
+
       pointsData.forEach(pt => {
         const marker = markersMap.get(pt.id);
         if (!marker) return;
+
         if (!markerClusterGroup.hasLayer(marker)) {
           markerClusterGroup.addLayer(marker);
         }
+
         const wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
         if (wrapperEl) {
           wrapperEl.classList.remove('dot-hidden');
           triggerSmoothFadeIn(wrapperEl);
         }
       });
+
+      if (markerClusterGroup && typeof markerClusterGroup.refreshClusters === 'function') {
+        markerClusterGroup.refreshClusters();
+      }
     }
 
     function togglePlay() {
