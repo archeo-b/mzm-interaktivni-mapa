@@ -50,12 +50,6 @@
       pointer-events: auto;
     }
 
-    /* Plynulá CSS animace při vytvoření ikony v DOM bez rizika zaseknutí neviditelnosti */
-    @keyframes dotFadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-
     .dot-wrapper {
       position: relative;
       width: 52px;
@@ -66,7 +60,6 @@
       transition: opacity 1.8s cubic-bezier(0.25, 0.1, 0.25, 1);
       opacity: 1;
       will-change: opacity;
-      animation: dotFadeIn 0.8s ease-out;
     }
 
     /* Skrytý stav při filtraci časovou osou */
@@ -384,7 +377,6 @@
     let playInterval = null;
     let isMapAnimating = false;
 
-    // Odolný přístup k vlastnostem řádku z Excelu
     function getRowVal(row, ...keys) {
       if (!row) return undefined;
       for (const k of keys) {
