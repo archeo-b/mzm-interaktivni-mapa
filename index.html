@@ -18,7 +18,6 @@
 
   <style>
     :root {
-      /* Dynamické měřítko ikon řízené přes JavaScript podle zoomu */
       --icon-scale: 1;
     }
 
@@ -40,20 +39,18 @@
       z-index: 1;
     }
 
-    /* Plynulé podání dlaždic */
     .leaflet-tile {
       image-rendering: auto !important;
       outline: 1px solid transparent;
     }
 
-    /* --- STYLOVÁNÍ A STABILNÍ PLYNULÁ ANIMACE IKON --- */
     .custom-dot-marker {
       background: none;
       border: none;
       pointer-events: auto;
     }
 
-    /* Vnitřní obal řídí POUZE průhlednost (opacity) - Plynulý 1.8s přechod pro náběh I MIZENÍ */
+    /* Plynulá změna průhlednosti přes CSS transition */
     .dot-wrapper {
       position: relative;
       width: 52px;
@@ -66,18 +63,12 @@
       will-change: opacity;
     }
 
-    /* Výchozí stav pro plynulé pomalé vykreslení (fading in) */
-    .dot-wrapper.dot-fading-in {
-      opacity: 0 !important;
-    }
-
-    /* Plynulé pomalé mizení (fading out) */
+    /* Skrytý stav při filtrování časovou osou */
     .dot-wrapper.dot-hidden {
       opacity: 0 !important;
       pointer-events: none !important;
     }
 
-    /* Styl samotné kruhové ikony - plynulá změna měřítka dle zoomu i hoveru */
     .dot-image {
       width: 48px;
       height: 48px;
@@ -102,7 +93,6 @@
       box-shadow: 0 0 18px rgba(245, 158, 11, 0.9), 0 2px 14px rgba(0, 0, 0, 0.7);
     }
 
-    /* Badge s počtem pro shluky (cluster) - přizpůsobuje se měřítku ikony */
     .cluster-count-badge {
       position: absolute;
       top: -2px;
@@ -122,7 +112,6 @@
       transition: transform 0.3s ease-out;
     }
 
-    /* Efekt pulzu pod aktivní ikonou */
     .dot-pulse {
       position: absolute;
       width: 60px;
@@ -149,7 +138,6 @@
       }
     }
 
-    /* --- STYLOVÁNÍ POSUVNÍKU --- */
     input[type=range] {
       -webkit-appearance: none;
       width: 100%;
@@ -187,12 +175,10 @@
       transform: scale(1.2);
     }
 
-    /* --- SCROLLBAR --- */
     .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
     .custom-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 8px; }
     .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 8px; }
 
-    /* --- ČISTÉ A PRODLOUŽENÉ ZOBRAZENÍ TABULKY (1.2s) --- */
     #sidePanelOverlay {
       transition: opacity 1.2s cubic-bezier(0.25, 0.1, 0.25, 1);
     }
@@ -212,7 +198,6 @@
       transform: scale(1) translateY(0) !important;
     }
 
-    /* --- SPOJOVACÍ LINKA --- */
     #connectorLine {
       stroke-dasharray: 8 4;
       animation: dash-animation 20s linear infinite;
@@ -239,7 +224,7 @@
 
   <div id="map"></div>
 
-  <!-- KOMPAKTNÍ ČASOVÁ OSA -->
+  <!-- ČASOVÁ OSA -->
   <div class="absolute bottom-3 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-2xl pointer-events-auto">
     <div class="bg-slate-950/80 backdrop-blur-md border border-slate-700/50 rounded-xl px-3.5 py-2.5 shadow-xl flex flex-col gap-2">
       
@@ -304,7 +289,7 @@
     </div>
   </div>
 
-  <!-- SVG SPOJOVACÍ LINKA -->
+  <!-- SPOJOVACÍ LINKA -->
   <svg id="connectorSvg" class="fixed inset-0 w-full h-full pointer-events-none z-40 hidden">
     <defs>
       <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -316,7 +301,7 @@
     <circle id="connectorDot" r="4" fill="#f59e0b" />
   </svg>
 
-  <!-- BOČNÍ INFORMAČNÍ PANEL -->
+  <!-- DETAIL MODAL -->
   <div id="sidePanelOverlay" class="hidden fixed inset-0 z-50 flex justify-end p-3 sm:p-6 bg-slate-950/40 opacity-0 pointer-events-auto">
     <div class="absolute inset-0" onclick="closeModal()"></div>
 
@@ -379,7 +364,8 @@
     let MAP_BOUNDS = null;
     let pointsData = [];
     let markersMap = new Map();
-    let markerTimeouts = new Map(); // Sledování běžíčích odložených časovačů skrytí
+    let markerTimeouts = new Map();
+
     let activeMarkerId = null;
     let activePointLatLng = null;
 
@@ -392,12 +378,23 @@
     let playInterval = null;
     let isMapAnimating = false;
 
+    // Helper pro flexibilní načítání hodnot z Excelu necitlivý na velká/malá písmena
+    function getProp(row, ...keys) {
+      if (!row) return undefined;
+      for (const k of keys) {
+        const foundKey = Object.keys(row).find(rk => rk.trim().toLowerCase() === k.toLowerCase());
+        if (foundKey !== undefined && row[foundKey] !== null && row[foundKey] !== "") {
+          return row[foundKey];
+        }
+      }
+      return undefined;
+    }
+
     function cancelAllMarkerTimeouts() {
       markerTimeouts.forEach(tId => clearTimeout(tId));
       markerTimeouts.clear();
     }
 
-    /* Plynulá úprava velikosti ikon při změně zoomu */
     function updateIconScaleForZoom() {
       if (!map) return;
       const zoom = map.getZoom();
@@ -500,16 +497,6 @@
       map.setView(RAW_BOUNDS.getCenter(), coverZoom, { animate: false });
     }
 
-    function triggerSmoothFadeIn(wrapperEl) {
-      if (!wrapperEl) return;
-      wrapperEl.classList.add('dot-fading-in');
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          wrapperEl.classList.remove('dot-fading-in');
-        });
-      });
-    }
-
     async function initMap() {
       try {
         await loadBoundsFromJgw();
@@ -550,7 +537,7 @@
             return L.divIcon({
               className: 'custom-dot-marker',
               html: `
-                <div class="dot-wrapper dot-fading-in" id="cluster-wrapper-${cluster._leaflet_id}">
+                <div class="dot-wrapper" id="cluster-wrapper-${cluster._leaflet_id}">
                   <div class="cluster-count-badge">${count}</div>
                   <img src="${iconSrc}" class="dot-image" alt="Shluk bodů">
                 </div>
@@ -559,12 +546,6 @@
               iconAnchor: [26, 26]
             });
           }
-        });
-
-        markerClusterGroup.on('animationend layeradd', () => {
-          document.querySelectorAll('.dot-wrapper.dot-fading-in').forEach(el => {
-            triggerSmoothFadeIn(el);
-          });
         });
 
         map.addLayer(markerClusterGroup);
@@ -649,6 +630,8 @@
     async function loadPointsFromExcel() {
       try {
         const response = await fetch(CONFIG.excelUrl);
+        if (!response.ok) throw new Error(`Nelze načíst ${CONFIG.excelUrl} (HTTP ${response.status})`);
+        
         const arrayBuffer = await response.arrayBuffer();
         const workbook = XLSX.read(arrayBuffer, { type: 'array' });
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -657,31 +640,41 @@
         pointsData = rawData.map((row, index) => {
           const pages = [];
           for (let i = 1; i <= 5; i++) {
-            if (row[`text${i}`] || row[`image${i}`]) {
-              pages.push({ text: row[`text${i}`] || '', image: row[`image${i}`] || '' });
+            const txt = getProp(row, `text${i}`, `Text${i}`);
+            const img = getProp(row, `image${i}`, `Image${i}`, `img${i}`, `Img${i}`);
+            if (txt || img) {
+              pages.push({ text: txt || '', image: img || '' });
             }
           }
 
-          const rawDate = row.datace ? String(row.datace).trim() : '';
+          const rawDate = getProp(row, 'datace', 'Datace', 'date', 'Date') || '';
           const yearsRange = parseDateToYears(rawDate);
+
+          // Převedení souřadnic z textu i s čárkami na číselné float
+          const rawLat = getProp(row, 'lat', 'latitude', 'y', 'sirka', 'širka', 'Šířka');
+          const rawLng = getProp(row, 'lng', 'lon', 'long', 'longitude', 'x', 'delka', 'délka', 'Délka');
+
+          const latVal = rawLat ? parseFloat(String(rawLat).replace(',', '.')) : NaN;
+          const lngVal = rawLng ? parseFloat(String(rawLng).replace(',', '.')) : NaN;
 
           return {
             id: index + 1,
-            title: row.title || 'Bez názvu',
-            category: row.category || '',
-            dateStr: rawDate,
+            title: getProp(row, 'title', 'Title', 'nazev', 'Název', 'lokalita', 'Lokalita') || 'Bez názvu',
+            category: getProp(row, 'category', 'Category', 'kategorie', 'Kategorie') || '',
+            dateStr: String(rawDate).trim(),
             startYear: yearsRange.start,
             endYear: yearsRange.end,
-            lat: parseFloat(row.lat),
-            lng: parseFloat(row.lng),
+            lat: latVal,
+            lng: lngVal,
             pages: pages
           };
-        });
+        }).filter(pt => !isNaN(pt.lat) && !isNaN(pt.lng)); // Pouze platné body se souřadnicemi
 
         initMarkers();
         showAllPoints();
       } catch (error) {
         console.error('Chyba při načítání souboru body.xlsx:', error);
+        alert('Chyba při načítání bodů z Excelu. Zkontrolujte, zda soubor body.xlsx existuje a zda aplikaci spouštíte přes lokální server.');
       }
     }
 
@@ -695,14 +688,12 @@
       const allMarkers = [];
 
       pointsData.forEach(pt => {
-        if (isNaN(pt.lat) || isNaN(pt.lng)) return;
-
         const iconSrc = getCategoryIconPath(pt.category);
 
         const customIcon = L.divIcon({
           className: 'custom-dot-marker',
           html: `
-            <div class="dot-wrapper dot-fading-in" id="marker-wrapper-${pt.id}">
+            <div class="dot-wrapper" id="marker-wrapper-${pt.id}">
               <div class="dot-pulse"></div>
               <img src="${iconSrc}" class="dot-image" title="${pt.title} (${pt.category || 'Nespecifikováno'})" alt="${pt.title}">
             </div>
@@ -717,13 +708,6 @@
         });
         
         marker.on('click', () => onPointClick(pt, [pt.lat, pt.lng]));
-
-        marker.on('add', () => {
-          setTimeout(() => {
-            const el = document.getElementById(`marker-wrapper-${pt.id}`);
-            if (el) triggerSmoothFadeIn(el);
-          }, 20);
-        });
 
         markersMap.set(pt.id, marker);
         allMarkers.push(marker);
@@ -756,16 +740,13 @@
           }
           if (wrapperEl) {
             wrapperEl.classList.remove('dot-hidden');
-            triggerSmoothFadeIn(wrapperEl);
           }
         } else {
           if (!wrapperEl) {
-            // Pokud prvek není v DOM (např. je schován ve shluku), odebereme vrstvu ihned
             if (markerClusterGroup.hasLayer(marker)) {
               toRemove.push(marker);
             }
           } else {
-            // Je-li viditelný samostaně na mapě, spustíme plynulý fade-out a až po něm odebereme
             wrapperEl.classList.add('dot-hidden');
             const tId = setTimeout(() => {
               if (markerClusterGroup.hasLayer(marker)) {
@@ -782,7 +763,6 @@
         }
       });
 
-      // Dávková aktualizace shluků
       if (toRemove.length > 0) markerClusterGroup.removeLayers(toRemove);
       if (toAdd.length > 0) markerClusterGroup.addLayers(toAdd);
     }
@@ -817,7 +797,6 @@
     function showAllPoints() {
       if (isPlaying) stopPlay();
 
-      // Zrušíme všechny běžící časovače pro mazání bodů
       cancelAllMarkerTimeouts();
 
       document.getElementById('currentPeriodLabel').innerText = 'Všechna období';
@@ -835,11 +814,9 @@
         const wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
         if (wrapperEl) {
           wrapperEl.classList.remove('dot-hidden');
-          triggerSmoothFadeIn(wrapperEl);
         }
       });
 
-      // Dávkově přidáme všechny chybějící body zpět do shlukovače
       if (toAdd.length > 0) {
         markerClusterGroup.addLayers(toAdd);
       }
