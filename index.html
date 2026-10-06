@@ -18,6 +18,7 @@
 
   <style>
     :root {
+      /* Dynamické měřítko ikon řízené přes JavaScript podle zoomu */
       --icon-scale: 1;
     }
 
@@ -28,7 +29,6 @@
       padding: 0;
       overflow: hidden;
       font-family: system-ui, -apple-system, sans-serif;
-      background-color: #0f172a;
     }
 
     #map {
@@ -38,33 +38,22 @@
       width: 100vw;
       height: 100vh;
       z-index: 1;
-      background-color: #0f172a !important;
     }
 
-    /* VRSTVENÍ PODKLADU A DLAŽDIC */
-    .leaflet-pane.bgPane-pane {
-      z-index: 100 !important; /* Spodní vrstva: podklad.jpeg */
-    }
-
-    .leaflet-pane.tile-pane {
-      z-index: 200 !important; /* Horní vrstva: dlaždice z /tiles */
-    }
-
+    /* Plynulé podání dlaždic */
     .leaflet-tile {
-      image-rendering: -webkit-optimize-contrast !important;
-      image-rendering: crisp-edges !important;
-      -webkit-backface-visibility: hidden;
-      backface-visibility: hidden;
-      transform: translate3d(0,0,0);
+      image-rendering: auto !important;
+      outline: 1px solid transparent;
     }
 
-    /* IKONY A SPRAVODANÍ STAVŮ */
+    /* --- STYLOVÁNÍ A STABILNÍ PLYNULÁ ANIMACE IKON --- */
     .custom-dot-marker {
       background: none;
       border: none;
       pointer-events: auto;
     }
 
+    /* Vnitřní obal řídí POUZE průhlednost (opacity) - Plynulý 1.8s přechod pro náběh I MIZENÍ */
     .dot-wrapper {
       position: relative;
       width: 52px;
@@ -72,16 +61,23 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: opacity 0.3s ease-out;
+      transition: opacity 1.8s cubic-bezier(0.25, 0.1, 0.25, 1);
       opacity: 1;
       will-change: opacity;
     }
 
+    /* Výchozí stav pro plynulé pomalé vykreslení (fading in) */
+    .dot-wrapper.dot-fading-in {
+      opacity: 0 !important;
+    }
+
+    /* Plynulé pomalé mizení (fading out) */
     .dot-wrapper.dot-hidden {
       opacity: 0 !important;
       pointer-events: none !important;
     }
 
+    /* Styl samotné kruhové ikony - plynulá změna měřítka dle zoomu i hoveru */
     .dot-image {
       width: 48px;
       height: 48px;
@@ -90,21 +86,23 @@
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
       cursor: pointer;
       transform: scale(var(--icon-scale));
-      transition: transform 0.2s ease-out;
+      transition: transform 0.3s ease-out, box-shadow 0.2s ease-out;
       position: relative;
       z-index: 2;
+      will-change: transform;
     }
 
     .dot-wrapper:hover .dot-image {
       transform: scale(calc(var(--icon-scale) * 1.2));
-      box-shadow: 0 0 14px rgba(245, 158, 11, 0.8);
+      box-shadow: 0 0 14px rgba(245, 158, 11, 0.8), 0 2px 12px rgba(0, 0, 0, 0.6);
     }
 
     .dot-wrapper.active .dot-image {
       transform: scale(calc(var(--icon-scale) * 1.3));
-      box-shadow: 0 0 18px rgba(245, 158, 11, 0.9);
+      box-shadow: 0 0 18px rgba(245, 158, 11, 0.9), 0 2px 14px rgba(0, 0, 0, 0.7);
     }
 
+    /* Badge s počtem pro shluky (cluster) - přizpůsobuje se měřítku ikony */
     .cluster-count-badge {
       position: absolute;
       top: -2px;
@@ -121,9 +119,37 @@
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
       pointer-events: none;
       transform: scale(var(--icon-scale));
+      transition: transform 0.3s ease-out;
     }
 
-    /* POSUVNÍK CASOVÉ OSY */
+    /* Efekt pulzu pod aktivní ikonou */
+    .dot-pulse {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background-color: rgba(245, 158, 11, 0.5);
+      opacity: 0;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .dot-wrapper.active .dot-pulse {
+      animation: radar-ripple 2s infinite ease-out;
+    }
+
+    @keyframes radar-ripple {
+      0% {
+        transform: scale(calc(var(--icon-scale) * 0.3));
+        opacity: 0.9;
+      }
+      100% {
+        transform: scale(calc(var(--icon-scale) * 2.2));
+        opacity: 0;
+      }
+    }
+
+    /* --- STYLOVÁNÍ POSUVNÍKU --- */
     input[type=range] {
       -webkit-appearance: none;
       width: 100%;
@@ -140,6 +166,7 @@
       cursor: pointer;
       background: #334155;
       border-radius: 2px;
+      border: none;
     }
 
     input[type=range]::-webkit-slider-thumb {
@@ -151,46 +178,54 @@
       cursor: pointer;
       -webkit-appearance: none;
       margin-top: -5px;
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+      transition: transform 0.15s ease, background-color 0.15s ease;
     }
 
-    /* TABULKA A ANIMACE MOBILU BEZ BLIKÁNÍ */
+    input[type=range]::-webkit-slider-thumb:hover {
+      background: #60a5fa;
+      transform: scale(1.2);
+    }
+
+    /* --- SCROLLBAR --- */
+    .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 8px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 8px; }
+
+    /* --- ČISTÉ A PRODLOUŽENÉ ZOBRAZENÍ TABULKY (1.2s) --- */
     #sidePanelOverlay {
-      transition: opacity 0.3s ease-out;
+      transition: opacity 1.2s cubic-bezier(0.25, 0.1, 0.25, 1);
     }
 
     #sidePanelCard {
-      transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+      transition: opacity 1.2s cubic-bezier(0.25, 0.1, 0.25, 1), 
+                  transform 1.2s cubic-bezier(0.25, 0.1, 0.25, 1);
     }
 
     .mist-hidden {
       opacity: 0 !important;
-      transform: translateY(8px) !important;
-      pointer-events: none !important;
+      transform: scale(0.96) translateY(12px) !important;
     }
 
     .mist-visible {
       opacity: 1 !important;
-      transform: translateY(0) !important;
-      pointer-events: auto !important;
+      transform: scale(1) translateY(0) !important;
     }
 
-    @media (max-width: 639px) {
-      .mist-hidden, .mist-visible {
-        transform: none !important;
-      }
-    }
-
+    /* --- SPOJOVACÍ LINKA --- */
     #connectorLine {
       stroke-dasharray: 8 4;
       animation: dash-animation 20s linear infinite;
     }
 
     @keyframes dash-animation {
-      to { stroke-dashoffset: -100; }
+      to {
+        stroke-dashoffset: -100;
+      }
     }
   </style>
 </head>
-<body class="relative w-full h-full select-none bg-slate-950">
+<body class="relative w-full h-full select-none">
 
   <!-- PRELOADER -->
   <div id="loaderScreen" class="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-6 text-white transition-opacity duration-500">
@@ -204,7 +239,7 @@
 
   <div id="map"></div>
 
-  <!-- ČASOVÁ OSA -->
+  <!-- KOMPAKTNÍ ČASOVÁ OSA -->
   <div class="absolute bottom-3 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-2xl pointer-events-auto">
     <div class="bg-slate-950/80 backdrop-blur-md border border-slate-700/50 rounded-xl px-3.5 py-2.5 shadow-xl flex flex-col gap-2">
       
@@ -269,7 +304,7 @@
     </div>
   </div>
 
-  <!-- SPOJOVACÍ LINKA -->
+  <!-- SVG SPOJOVACÍ LINKA -->
   <svg id="connectorSvg" class="fixed inset-0 w-full h-full pointer-events-none z-40 hidden">
     <defs>
       <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -297,7 +332,7 @@
         </button>
       </div>
 
-      <div class="p-5 sm:p-8 overflow-y-auto flex-1 space-y-6">
+      <div class="p-5 sm:p-8 overflow-y-auto custom-scroll flex-1 space-y-6">
         <div id="modalText" class="text-slate-300 text-base sm:text-lg leading-relaxed"></div>
         <div id="modalImageContainer" class="rounded-2xl overflow-hidden bg-slate-950/50 border border-slate-800 hidden">
           <img id="modalImage" src="" alt="" class="w-full h-64 sm:h-80 lg:h-96 object-cover">
@@ -356,19 +391,24 @@
     let playInterval = null;
     let isMapAnimating = false;
 
+    /* Plynulá úprava velikosti ikon při změně zoomu */
     function updateIconScaleForZoom() {
       if (!map) return;
       const zoom = map.getZoom();
+      
+      // Měřítko 1.0 při zoomu <= 10, postupně plynule zvětšuje až na 1.55 při max zoomu (15)
       let scale = 1;
       if (zoom > 10) {
         scale = 1 + ((zoom - 10) / (CONFIG.maxZoom - 10)) * 0.55;
       }
+      
       document.documentElement.style.setProperty('--icon-scale', scale.toFixed(2));
     }
 
     function getCategoryIconPath(categoryStr) {
       if (!categoryStr) return 'sidliste.png';
       const cat = categoryStr.toString().toLowerCase();
+
       if (cat.includes('pohřebiště') || cat.includes('pohrebiste') || cat.includes('hrob')) {
         return 'pohrebiste.png';
       }
@@ -381,7 +421,7 @@
     function smoothSetView(targetCenter, targetZoom) {
       map.flyTo(targetCenter, targetZoom, {
         animate: true,
-        duration: 1.5,
+        duration: 1.8,
         easeLinearity: 0.25
       });
     }
@@ -455,6 +495,16 @@
       map.setView(RAW_BOUNDS.getCenter(), coverZoom, { animate: false });
     }
 
+    function triggerSmoothFadeIn(wrapperEl) {
+      if (!wrapperEl) return;
+      wrapperEl.classList.add('dot-fading-in');
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          wrapperEl.classList.remove('dot-fading-in');
+        });
+      });
+    }
+
     async function initMap() {
       try {
         await loadBoundsFromJgw();
@@ -472,7 +522,9 @@
           maxZoom: CONFIG.maxZoom,
           maxBounds: MAP_BOUNDS,
           maxBoundsViscosity: 1.0,
-          bounceAtZoomLimits: false
+          bounceAtZoomLimits: false,
+          fadeAnimation: true,
+          zoomAnimation: true
         });
 
         markerClusterGroup = L.markerClusterGroup({
@@ -493,9 +545,9 @@
             return L.divIcon({
               className: 'custom-dot-marker',
               html: `
-                <div class="dot-wrapper">
+                <div class="dot-wrapper dot-fading-in" id="cluster-wrapper-${cluster._leaflet_id}">
                   <div class="cluster-count-badge">${count}</div>
-                  <img src="${iconSrc}" class="dot-image" alt="Shluk">
+                  <img src="${iconSrc}" class="dot-image" alt="Shluk bodů">
                 </div>
               `,
               iconSize: [52, 52],
@@ -504,11 +556,16 @@
           }
         });
 
+        markerClusterGroup.on('animationend layeradd', () => {
+          document.querySelectorAll('.dot-wrapper.dot-fading-in').forEach(el => {
+            triggerSmoothFadeIn(el);
+          });
+        });
+
         map.addLayer(markerClusterGroup);
 
-        /* PANE Vytvoření a přesné seřazení z-indexů */
         map.createPane('bgPane');
-        map.getPane('bgPane').style.zIndex = 100; // Spodní vrstva
+        map.getPane('bgPane').style.zIndex = 100;
 
         L.imageOverlay('./podklad.jpeg', RAW_BOUNDS, {
           pane: 'bgPane',
@@ -516,13 +573,15 @@
           opacity: 1
         }).addTo(map);
 
-        // Standardní tilePane má v Leafletu z-index 200 (nad bgPane)
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
           minZoom: CONFIG.minZoom,
           maxZoom: CONFIG.maxZoom,
           tileSize: CONFIG.tileSize,
           noWrap: true,
-          keepBuffer: 3,
+          keepBuffer: 1,
+          updateWhenIdle: true,
+          updateWhenZooming: false,
+          unloadInvisibleTiles: true,
           bounds: RAW_BOUNDS
         }).addTo(map);
 
@@ -635,8 +694,9 @@
         const customIcon = L.divIcon({
           className: 'custom-dot-marker',
           html: `
-            <div class="dot-wrapper" id="marker-wrapper-${pt.id}">
-              <img src="${iconSrc}" class="dot-image" title="${pt.title}" alt="${pt.title}">
+            <div class="dot-wrapper dot-fading-in" id="marker-wrapper-${pt.id}">
+              <div class="dot-pulse"></div>
+              <img src="${iconSrc}" class="dot-image" title="${pt.title} (${pt.category || 'Nespecifikováno'})" alt="${pt.title}">
             </div>
           `,
           iconSize: [52, 52],
@@ -649,15 +709,20 @@
         });
         
         marker.on('click', () => onPointClick(pt, [pt.lat, pt.lng]));
+
+        marker.on('add', () => {
+          setTimeout(() => {
+            const el = document.getElementById(`marker-wrapper-${pt.id}`);
+            if (el) triggerSmoothFadeIn(el);
+          }, 20);
+        });
+
         markersMap.set(pt.id, marker);
         markerClusterGroup.addLayer(marker);
       });
     }
 
     function updateMapPointsVisibility(currentYear) {
-      const markersToAdd = [];
-      const markersToRemove = [];
-
       pointsData.forEach(pt => {
         const marker = markersMap.get(pt.id);
         if (!marker) return;
@@ -667,35 +732,27 @@
 
         if (isVisible) {
           if (!markerClusterGroup.hasLayer(marker)) {
-            markersToAdd.push(marker);
+            markerClusterGroup.addLayer(marker);
           }
-          if (wrapperEl) wrapperEl.classList.remove('dot-hidden');
+          if (wrapperEl) {
+            wrapperEl.classList.remove('dot-hidden');
+            triggerSmoothFadeIn(wrapperEl);
+          }
         } else {
-          if (wrapperEl) wrapperEl.classList.add('dot-hidden');
-          if (markerClusterGroup.hasLayer(marker)) {
-            markersToRemove.push(marker);
+          if (wrapperEl) {
+            wrapperEl.classList.add('dot-hidden');
+            setTimeout(() => {
+              if (wrapperEl.classList.contains('dot-hidden') && markerClusterGroup.hasLayer(marker)) {
+                markerClusterGroup.removeLayer(marker);
+              }
+            }, 1800);
+          } else if (markerClusterGroup.hasLayer(marker)) {
+            markerClusterGroup.removeLayer(marker);
           }
         }
-      });
 
-      if (markersToRemove.length > 0) markerClusterGroup.removeLayers(markersToRemove);
-      if (markersToAdd.length > 0) markerClusterGroup.addLayers(markersToAdd);
-    }
-
-    /* BEZPEČNÉ OBNOVENÍ VŠECH BODŮ PRO TLAČÍTKO "ZOBRAZIT VŠE" */
-    function showAllPoints() {
-      if (isPlaying) stopPlay();
-
-      document.getElementById('currentPeriodLabel').innerText = 'Všechna období';
-      document.getElementById('currentYearLabel').innerText = '460 – 25 př. n. l.';
-
-      const allMarkers = Array.from(markersMap.values());
-      markerClusterGroup.addLayers(allMarkers);
-
-      pointsData.forEach(pt => {
-        const wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
-        if (wrapperEl) {
-          wrapperEl.classList.remove('dot-hidden');
+        if (!isVisible && activeMarkerId === pt.id) {
+          closeModal();
         }
       });
     }
@@ -725,6 +782,26 @@
       } else {
         periodLabel.innerText = 'LT období';
       }
+    }
+
+    function showAllPoints() {
+      if (isPlaying) stopPlay();
+
+      document.getElementById('currentPeriodLabel').innerText = 'Všechna období';
+      document.getElementById('currentYearLabel').innerText = '460 – 25 př. n. l.';
+
+      pointsData.forEach(pt => {
+        const marker = markersMap.get(pt.id);
+        if (!marker) return;
+        if (!markerClusterGroup.hasLayer(marker)) {
+          markerClusterGroup.addLayer(marker);
+        }
+        const wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
+        if (wrapperEl) {
+          wrapperEl.classList.remove('dot-hidden');
+          triggerSmoothFadeIn(wrapperEl);
+        }
+      });
     }
 
     function togglePlay() {
@@ -860,12 +937,12 @@
 
       overlay.classList.remove('hidden');
 
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         overlay.classList.remove('opacity-0');
         card.classList.remove('mist-hidden');
         card.classList.add('mist-visible');
-        setTimeout(updateConnectorLine, 350);
-      }, 20);
+        setTimeout(updateConnectorLine, 800);
+      });
     }
 
     function formatTextToParagraphs(rawText) {
@@ -922,7 +999,7 @@
 
       setTimeout(() => {
         overlay.classList.add('hidden');
-      }, 300);
+      }, 1200);
 
       setActiveMarker(null, null);
 
