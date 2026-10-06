@@ -379,6 +379,7 @@
     let MAP_BOUNDS = null;
     let pointsData = [];
     let markersMap = new Map();
+    let markerTimeouts = new Map(); // Sledování běžíčích odložených časovačů skrytí
     let activeMarkerId = null;
     let activePointLatLng = null;
 
@@ -391,12 +392,16 @@
     let playInterval = null;
     let isMapAnimating = false;
 
+    function cancelAllMarkerTimeouts() {
+      markerTimeouts.forEach(tId => clearTimeout(tId));
+      markerTimeouts.clear();
+    }
+
     /* Plynulá úprava velikosti ikon při změně zoomu */
     function updateIconScaleForZoom() {
       if (!map) return;
       const zoom = map.getZoom();
       
-      // Měřítko 1.0 při zoomu <= 10, postupně plynule zvětšuje až na 1.55 při max zoomu (15)
       let scale = 1;
       if (zoom > 10) {
         scale = 1 + ((zoom - 10) / (CONFIG.maxZoom - 10)) * 0.55;
@@ -531,7 +536,7 @@
           showCoverageOnHover: false,
           zoomToBoundsOnClick: true,
           spiderfyOnMaxZoom: true,
-          removeOutsideVisibleBounds: false,
+          removeOutsideVisibleBounds: true,
           disableClusteringAtZoom: CONFIG.targetZoom,
           iconCreateFunction: function(cluster) {
             const count = cluster.getChildCount();
@@ -681,10 +686,13 @@
     }
 
     function initMarkers() {
+      cancelAllMarkerTimeouts();
       if (markerClusterGroup) {
         markerClusterGroup.clearLayers();
       }
       markersMap.clear();
+
+      const allMarkers = [];
 
       pointsData.forEach(pt => {
         if (isNaN(pt.lat) || isNaN(pt.lng)) return;
@@ -718,36 +726,54 @@
         });
 
         markersMap.set(pt.id, marker);
-        markerClusterGroup.addLayer(marker);
+        allMarkers.push(marker);
       });
+
+      if (allMarkers.length > 0) {
+        markerClusterGroup.addLayers(allMarkers);
+      }
     }
 
     function updateMapPointsVisibility(currentYear) {
+      const toAdd = [];
+      const toRemove = [];
+
       pointsData.forEach(pt => {
         const marker = markersMap.get(pt.id);
         if (!marker) return;
+
+        if (markerTimeouts.has(pt.id)) {
+          clearTimeout(markerTimeouts.get(pt.id));
+          markerTimeouts.delete(pt.id);
+        }
 
         const isVisible = (currentYear >= pt.startYear && currentYear <= pt.endYear);
         const wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
 
         if (isVisible) {
           if (!markerClusterGroup.hasLayer(marker)) {
-            markerClusterGroup.addLayer(marker);
+            toAdd.push(marker);
           }
           if (wrapperEl) {
             wrapperEl.classList.remove('dot-hidden');
             triggerSmoothFadeIn(wrapperEl);
           }
         } else {
-          if (wrapperEl) {
+          if (!wrapperEl) {
+            // Pokud prvek není v DOM (např. je schován ve shluku), odebereme vrstvu ihned
+            if (markerClusterGroup.hasLayer(marker)) {
+              toRemove.push(marker);
+            }
+          } else {
+            // Je-li viditelný samostaně na mapě, spustíme plynulý fade-out a až po něm odebereme
             wrapperEl.classList.add('dot-hidden');
-            setTimeout(() => {
-              if (wrapperEl.classList.contains('dot-hidden') && markerClusterGroup.hasLayer(marker)) {
+            const tId = setTimeout(() => {
+              if (markerClusterGroup.hasLayer(marker)) {
                 markerClusterGroup.removeLayer(marker);
               }
+              markerTimeouts.delete(pt.id);
             }, 1800);
-          } else if (markerClusterGroup.hasLayer(marker)) {
-            markerClusterGroup.removeLayer(marker);
+            markerTimeouts.set(pt.id, tId);
           }
         }
 
@@ -755,6 +781,10 @@
           closeModal();
         }
       });
+
+      // Dávková aktualizace shluků
+      if (toRemove.length > 0) markerClusterGroup.removeLayers(toRemove);
+      if (toAdd.length > 0) markerClusterGroup.addLayers(toAdd);
     }
 
     function onSliderInput(val) {
@@ -787,21 +817,32 @@
     function showAllPoints() {
       if (isPlaying) stopPlay();
 
+      // Zrušíme všechny běžící časovače pro mazání bodů
+      cancelAllMarkerTimeouts();
+
       document.getElementById('currentPeriodLabel').innerText = 'Všechna období';
       document.getElementById('currentYearLabel').innerText = '460 – 25 př. n. l.';
 
+      const toAdd = [];
       pointsData.forEach(pt => {
         const marker = markersMap.get(pt.id);
         if (!marker) return;
+
         if (!markerClusterGroup.hasLayer(marker)) {
-          markerClusterGroup.addLayer(marker);
+          toAdd.push(marker);
         }
+
         const wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
         if (wrapperEl) {
           wrapperEl.classList.remove('dot-hidden');
           triggerSmoothFadeIn(wrapperEl);
         }
       });
+
+      // Dávkově přidáme všechny chybějící body zpět do shlukovače
+      if (toAdd.length > 0) {
+        markerClusterGroup.addLayers(toAdd);
+      }
     }
 
     function togglePlay() {
