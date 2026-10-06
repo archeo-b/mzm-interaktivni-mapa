@@ -50,7 +50,12 @@
       pointer-events: auto;
     }
 
-    /* Plynulá změna průhlednosti přes CSS transition */
+    /* Plynulá CSS animace při vytvoření ikony v DOM bez rizika zaseknutí neviditelnosti */
+    @keyframes dotFadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
     .dot-wrapper {
       position: relative;
       width: 52px;
@@ -61,9 +66,10 @@
       transition: opacity 1.8s cubic-bezier(0.25, 0.1, 0.25, 1);
       opacity: 1;
       will-change: opacity;
+      animation: dotFadeIn 0.8s ease-out;
     }
 
-    /* Skrytý stav při filtrování časovou osou */
+    /* Skrytý stav při filtraci časovou osou */
     .dot-wrapper.dot-hidden {
       opacity: 0 !important;
       pointer-events: none !important;
@@ -378,8 +384,8 @@
     let playInterval = null;
     let isMapAnimating = false;
 
-    // Helper pro flexibilní načítání hodnot z Excelu necitlivý na velká/malá písmena
-    function getProp(row, ...keys) {
+    // Odolný přístup k vlastnostem řádku z Excelu
+    function getRowVal(row, ...keys) {
       if (!row) return undefined;
       for (const k of keys) {
         const foundKey = Object.keys(row).find(rk => rk.trim().toLowerCase() === k.toLowerCase());
@@ -523,7 +529,7 @@
           showCoverageOnHover: false,
           zoomToBoundsOnClick: true,
           spiderfyOnMaxZoom: true,
-          removeOutsideVisibleBounds: true,
+          removeOutsideVisibleBounds: false,
           disableClusteringAtZoom: CONFIG.targetZoom,
           iconCreateFunction: function(cluster) {
             const count = cluster.getChildCount();
@@ -630,8 +636,7 @@
     async function loadPointsFromExcel() {
       try {
         const response = await fetch(CONFIG.excelUrl);
-        if (!response.ok) throw new Error(`Nelze načíst ${CONFIG.excelUrl} (HTTP ${response.status})`);
-        
+        if (!response.ok) throw new Error(`Nelze načíst ${CONFIG.excelUrl}`);
         const arrayBuffer = await response.arrayBuffer();
         const workbook = XLSX.read(arrayBuffer, { type: 'array' });
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -640,27 +645,26 @@
         pointsData = rawData.map((row, index) => {
           const pages = [];
           for (let i = 1; i <= 5; i++) {
-            const txt = getProp(row, `text${i}`, `Text${i}`);
-            const img = getProp(row, `image${i}`, `Image${i}`, `img${i}`, `Img${i}`);
+            const txt = getRowVal(row, `text${i}`);
+            const img = getRowVal(row, `image${i}`, `img${i}`);
             if (txt || img) {
               pages.push({ text: txt || '', image: img || '' });
             }
           }
 
-          const rawDate = getProp(row, 'datace', 'Datace', 'date', 'Date') || '';
+          const rawDate = getRowVal(row, 'datace', 'date') || '';
           const yearsRange = parseDateToYears(rawDate);
 
-          // Převedení souřadnic z textu i s čárkami na číselné float
-          const rawLat = getProp(row, 'lat', 'latitude', 'y', 'sirka', 'širka', 'Šířka');
-          const rawLng = getProp(row, 'lng', 'lon', 'long', 'longitude', 'x', 'delka', 'délka', 'Délka');
+          const rawLat = getRowVal(row, 'lat', 'latitude', 'y', 'sirka', 'širka', 'šířka');
+          const rawLng = getRowVal(row, 'lng', 'lon', 'long', 'longitude', 'x', 'delka', 'délka');
 
-          const latVal = rawLat ? parseFloat(String(rawLat).replace(',', '.')) : NaN;
-          const lngVal = rawLng ? parseFloat(String(rawLng).replace(',', '.')) : NaN;
+          const latVal = rawLat !== undefined ? parseFloat(String(rawLat).replace(',', '.')) : NaN;
+          const lngVal = rawLng !== undefined ? parseFloat(String(rawLng).replace(',', '.')) : NaN;
 
           return {
             id: index + 1,
-            title: getProp(row, 'title', 'Title', 'nazev', 'Název', 'lokalita', 'Lokalita') || 'Bez názvu',
-            category: getProp(row, 'category', 'Category', 'kategorie', 'Kategorie') || '',
+            title: getRowVal(row, 'title', 'nazev', 'lokalita') || 'Bez názvu',
+            category: getRowVal(row, 'category', 'kategorie') || '',
             dateStr: String(rawDate).trim(),
             startYear: yearsRange.start,
             endYear: yearsRange.end,
@@ -668,13 +672,12 @@
             lng: lngVal,
             pages: pages
           };
-        }).filter(pt => !isNaN(pt.lat) && !isNaN(pt.lng)); // Pouze platné body se souřadnicemi
+        }).filter(pt => !isNaN(pt.lat) && !isNaN(pt.lng));
 
         initMarkers();
         showAllPoints();
       } catch (error) {
         console.error('Chyba při načítání souboru body.xlsx:', error);
-        alert('Chyba při načítání bodů z Excelu. Zkontrolujte, zda soubor body.xlsx existuje a zda aplikaci spouštíte přes lokální server.');
       }
     }
 
@@ -684,8 +687,6 @@
         markerClusterGroup.clearLayers();
       }
       markersMap.clear();
-
-      const allMarkers = [];
 
       pointsData.forEach(pt => {
         const iconSrc = getCategoryIconPath(pt.category);
@@ -710,18 +711,11 @@
         marker.on('click', () => onPointClick(pt, [pt.lat, pt.lng]));
 
         markersMap.set(pt.id, marker);
-        allMarkers.push(marker);
+        markerClusterGroup.addLayer(marker);
       });
-
-      if (allMarkers.length > 0) {
-        markerClusterGroup.addLayers(allMarkers);
-      }
     }
 
     function updateMapPointsVisibility(currentYear) {
-      const toAdd = [];
-      const toRemove = [];
-
       pointsData.forEach(pt => {
         const marker = markersMap.get(pt.id);
         if (!marker) return;
@@ -736,25 +730,23 @@
 
         if (isVisible) {
           if (!markerClusterGroup.hasLayer(marker)) {
-            toAdd.push(marker);
+            markerClusterGroup.addLayer(marker);
           }
           if (wrapperEl) {
             wrapperEl.classList.remove('dot-hidden');
           }
         } else {
-          if (!wrapperEl) {
-            if (markerClusterGroup.hasLayer(marker)) {
-              toRemove.push(marker);
-            }
-          } else {
+          if (wrapperEl) {
             wrapperEl.classList.add('dot-hidden');
             const tId = setTimeout(() => {
-              if (markerClusterGroup.hasLayer(marker)) {
+              if (wrapperEl.classList.contains('dot-hidden') && markerClusterGroup.hasLayer(marker)) {
                 markerClusterGroup.removeLayer(marker);
               }
               markerTimeouts.delete(pt.id);
             }, 1800);
             markerTimeouts.set(pt.id, tId);
+          } else if (markerClusterGroup.hasLayer(marker)) {
+            markerClusterGroup.removeLayer(marker);
           }
         }
 
@@ -762,9 +754,6 @@
           closeModal();
         }
       });
-
-      if (toRemove.length > 0) markerClusterGroup.removeLayers(toRemove);
-      if (toAdd.length > 0) markerClusterGroup.addLayers(toAdd);
     }
 
     function onSliderInput(val) {
@@ -796,30 +785,23 @@
 
     function showAllPoints() {
       if (isPlaying) stopPlay();
-
       cancelAllMarkerTimeouts();
 
       document.getElementById('currentPeriodLabel').innerText = 'Všechna období';
       document.getElementById('currentYearLabel').innerText = '460 – 25 př. n. l.';
 
-      const toAdd = [];
       pointsData.forEach(pt => {
         const marker = markersMap.get(pt.id);
         if (!marker) return;
 
         if (!markerClusterGroup.hasLayer(marker)) {
-          toAdd.push(marker);
+          markerClusterGroup.addLayer(marker);
         }
-
         const wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
         if (wrapperEl) {
           wrapperEl.classList.remove('dot-hidden');
         }
       });
-
-      if (toAdd.length > 0) {
-        markerClusterGroup.addLayers(toAdd);
-      }
     }
 
     function togglePlay() {
