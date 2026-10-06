@@ -50,6 +50,7 @@
       pointer-events: auto;
     }
 
+    /* Plynulý přechod průhlednosti v obou směrech (náběh i mizení) */
     .dot-wrapper {
       position: relative;
       width: 52px;
@@ -57,7 +58,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: opacity 1.8s cubic-bezier(0.25, 0.1, 0.25, 1);
+      transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1);
       opacity: 1;
       will-change: opacity;
     }
@@ -718,15 +719,20 @@
         }
 
         const isVisible = (currentYear >= pt.startYear && currentYear <= pt.endYear);
-        const wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
+        let wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
 
         if (isVisible) {
           if (!markerClusterGroup.hasLayer(marker)) {
             markerClusterGroup.addLayer(marker);
           }
-          if (wrapperEl) {
-            wrapperEl.classList.remove('dot-hidden');
-          }
+          
+          // Plynulý náběh přes vteřinový kaskádový rozsek pro prohlížeč
+          requestAnimationFrame(() => {
+            wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
+            if (wrapperEl) {
+              wrapperEl.classList.remove('dot-hidden');
+            }
+          });
         } else {
           if (wrapperEl) {
             wrapperEl.classList.add('dot-hidden');
@@ -735,7 +741,7 @@
                 markerClusterGroup.removeLayer(marker);
               }
               markerTimeouts.delete(pt.id);
-            }, 1800);
+            }, 1200);
             markerTimeouts.set(pt.id, tId);
           } else if (markerClusterGroup.hasLayer(marker)) {
             markerClusterGroup.removeLayer(marker);
@@ -789,10 +795,13 @@
         if (!markerClusterGroup.hasLayer(marker)) {
           markerClusterGroup.addLayer(marker);
         }
-        const wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
-        if (wrapperEl) {
-          wrapperEl.classList.remove('dot-hidden');
-        }
+        
+        requestAnimationFrame(() => {
+          const wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
+          if (wrapperEl) {
+            wrapperEl.classList.remove('dot-hidden');
+          }
+        });
       });
     }
 
