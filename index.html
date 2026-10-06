@@ -6,8 +6,14 @@
   <title>Interaktivní mapa</title>
 
   <link rel="stylesheet" href="lib/leaflet.css">
+  <!-- CSS pro MarkerCluster -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
   <script src="lib/tailwind.js"></script>
   <script src="lib/leaflet.js"></script>
+  <!-- JS pro MarkerCluster -->
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="lib/lucide.min.js"></script>
   <script src="lib/xlsx.full.min.js"></script>
   <script src="lib/proj4.js"></script>
@@ -31,28 +37,26 @@
       z-index: 1;
     }
 
-    /* Plynulé podání dlaždic */
     .leaflet-tile {
       image-rendering: auto !important;
       outline: 1px solid transparent;
     }
 
-    /* --- STYLOVÁNÍ A STABILNÍ PLYNULÁ ANIMACE IKON --- */
+    /* --- STYLOVÁNÍ IKON PRO DOTYKOVÝ PANELY --- */
     .custom-dot-marker {
       background: none;
       border: none;
       pointer-events: auto;
     }
 
-    /* Vnitřní obal řídí POUZE průhlednost (opacity) */
     .dot-wrapper {
       position: relative;
-      width: 36px;
-      height: 36px;
+      width: 52px;
+      height: 52px;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: opacity 1.8s cubic-bezier(0.25, 0.1, 0.25, 1);
+      transition: opacity 0.4s ease;
       opacity: 1;
       will-change: opacity;
     }
@@ -62,34 +66,29 @@
       pointer-events: none !important;
     }
 
-    /* Styl samotné kruhové ikony */
+    /* Zvětšená kruhová ikona pro snadný dotyk prstem */
     .dot-image {
-      width: 32px;
-      height: 32px;
+      width: 48px;
+      height: 48px;
       border-radius: 50%;
       object-fit: cover;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(255, 255, 255, 0.2);
       cursor: pointer;
       transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
       position: relative;
       z-index: 2;
     }
 
-    .dot-wrapper:hover .dot-image {
-      transform: scale(1.25);
-      box-shadow: 0 0 12px rgba(245, 158, 11, 0.8), 0 2px 10px rgba(0, 0, 0, 0.6);
-    }
-
     .dot-wrapper.active .dot-image {
-      transform: scale(1.35);
-      box-shadow: 0 0 16px rgba(245, 158, 11, 0.9), 0 2px 12px rgba(0, 0, 0, 0.7);
+      transform: scale(1.25);
+      box-shadow: 0 0 20px rgba(245, 158, 11, 1), 0 0 0 3px #f59e0b;
     }
 
-    /* Efekt pulzu pod aktivní ikonou */
+    /* Pulz pod aktivní ikonou */
     .dot-pulse {
       position: absolute;
-      width: 44px;
-      height: 44px;
+      width: 56px;
+      height: 56px;
       border-radius: 50%;
       background-color: rgba(245, 158, 11, 0.5);
       opacity: 0;
@@ -103,13 +102,27 @@
 
     @keyframes radar-ripple {
       0% {
-        transform: scale(0.3);
+        transform: scale(0.4);
         opacity: 0.9;
       }
       100% {
         transform: scale(2.2);
         opacity: 0;
       }
+    }
+
+    /* --- STYLOVÁNÍ SHLUKŮ (MARKER CLUSTER) --- */
+    .marker-cluster-small, .marker-cluster-medium, .marker-cluster-large {
+      background-color: rgba(245, 158, 11, 0.3) !important;
+    }
+    
+    .marker-cluster-small div, .marker-cluster-medium div, .marker-cluster-large div {
+      background-color: rgba(15, 23, 42, 0.9) !important;
+      color: #f59e0b !important;
+      font-weight: 800 !important;
+      font-size: 16px !important;
+      border: 2px solid #f59e0b !important;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important;
     }
 
     /* --- STYLOVÁNÍ POSUVNÍKU --- */
@@ -125,44 +138,36 @@
 
     input[type=range]::-webkit-slider-runnable-track {
       width: 100%;
-      height: 4px;
+      height: 6px;
       cursor: pointer;
       background: #334155;
-      border-radius: 2px;
-      border: none;
+      border-radius: 3px;
     }
 
     input[type=range]::-webkit-slider-thumb {
-      height: 14px;
-      width: 14px;
+      height: 22px;
+      width: 22px;
       border-radius: 50%;
-      background: #3b82f6;
-      border: 2px solid #ffffff;
+      background: #f59e0b;
+      border: 3px solid #ffffff;
       cursor: pointer;
       -webkit-appearance: none;
-      margin-top: -5px;
-      box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
-      transition: transform 0.15s ease, background-color 0.15s ease;
+      margin-top: -8px;
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.8);
     }
 
-    input[type=range]::-webkit-slider-thumb:hover {
-      background: #60a5fa;
-      transform: scale(1.2);
-    }
-
-    /* --- SCROLLBAR --- */
-    .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
-    .custom-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 8px; }
+    /* SCROLLBAR */
+    .custom-scroll::-webkit-scrollbar { width: 6px; }
+    .custom-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); }
     .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 8px; }
 
-    /* --- ČISTÉ A PRODLOUŽENÉ ZOBRAZENÍ TABULKY (1.2s) --- */
+    /* BOČNÍ PANEL */
     #sidePanelOverlay {
-      transition: opacity 1.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+      transition: opacity 0.5s ease;
     }
 
     #sidePanelCard {
-      transition: opacity 1.2s cubic-bezier(0.25, 0.1, 0.25, 1), 
-                  transform 1.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+      transition: opacity 0.5s ease, transform 0.5s ease;
     }
 
     .mist-hidden {
@@ -175,16 +180,14 @@
       transform: scale(1) translateY(0) !important;
     }
 
-    /* --- SPOJOVACÍ LINKA --- */
+    /* SPOJOVACÍ LINKA */
     #connectorLine {
       stroke-dasharray: 8 4;
       animation: dash-animation 20s linear infinite;
     }
 
     @keyframes dash-animation {
-      to {
-        stroke-dashoffset: -100;
-      }
+      to { stroke-dashoffset: -100; }
     }
   </style>
 </head>
@@ -192,82 +195,82 @@
 
   <!-- PRELOADER -->
   <div id="loaderScreen" class="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-6 text-white transition-opacity duration-500">
-    <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-    <h2 class="text-xl font-bold mb-2">Načítání podkladové mapy...</h2>
-    <p id="loaderStatus" class="text-slate-400 text-sm mb-4">Výpočet geografických hranic...</p>
+    <div class="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+    <h2 class="text-xl font-bold mb-2">Načítání mapa...</h2>
+    <p id="loaderStatus" class="text-slate-400 text-sm mb-4">Příprava podkladů...</p>
     <div class="w-72 bg-slate-800 rounded-full h-3 overflow-hidden p-0.5 border border-slate-700">
-      <div id="loaderBar" class="bg-blue-500 h-full rounded-full w-0 transition-all duration-100"></div>
+      <div id="loaderBar" class="bg-amber-500 h-full rounded-full w-0 transition-all duration-100"></div>
     </div>
   </div>
 
   <div id="map"></div>
 
-  <!-- KOMPAKTNÍ ČASOVÁ OSA -->
-  <div class="absolute bottom-3 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-2xl pointer-events-auto">
-    <div class="bg-slate-950/80 backdrop-blur-md border border-slate-700/50 rounded-xl px-3.5 py-2.5 shadow-xl flex flex-col gap-2">
+  <!-- ČASOVÁ OSA -->
+  <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-2xl pointer-events-auto">
+    <div class="bg-slate-950/85 backdrop-blur-md border border-slate-700/60 rounded-2xl p-4 shadow-2xl flex flex-col gap-3">
       
       <div class="flex items-center justify-between gap-2">
-        <div class="flex items-center gap-1.5">
-          <button id="btn-all" onclick="showAllPoints()" class="px-2.5 py-1 bg-blue-600/90 hover:bg-blue-500 text-white rounded-lg text-[11px] font-semibold transition border border-blue-400/20 flex items-center gap-1 shadow-sm">
-            <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+        <div class="flex items-center gap-2">
+          <button id="btn-all" onclick="showAllPoints()" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition border border-amber-400/30 flex items-center gap-1.5 shadow-sm">
+            <i data-lucide="layers" class="w-4 h-4"></i>
             <span>Zobrazit vše</span>
           </button>
 
-          <button id="btn-play" onclick="togglePlay()" class="px-2.5 py-1 bg-slate-800/80 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-semibold transition border border-slate-700/60 flex items-center gap-1">
-            <i id="play-icon" data-lucide="play" class="w-3.5 h-3.5 text-emerald-400"></i>
+          <button id="btn-play" onclick="togglePlay()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition border border-slate-700 flex items-center gap-1.5">
+            <i id="play-icon" data-lucide="play" class="w-4 h-4 text-emerald-400"></i>
             <span id="play-text">Přehrát</span>
           </button>
         </div>
 
         <div class="flex items-center gap-2">
-          <span id="currentPeriodLabel" class="px-2 py-0.5 bg-amber-500/15 text-amber-300 border border-amber-500/20 rounded text-xs font-bold">
+          <span id="currentPeriodLabel" class="px-2.5 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold">
             Všechna období
           </span>
-          <span id="currentYearLabel" class="text-xs sm:text-sm font-bold text-slate-200 tracking-wide">
+          <span id="currentYearLabel" class="text-sm font-extrabold text-slate-100 tracking-wide">
             460 př. n. l.
           </span>
         </div>
       </div>
 
-      <div class="relative px-0.5">
+      <div class="relative px-1 py-1">
         <input type="range" id="timeSlider" min="-460" max="-25" value="-460" step="1" oninput="onSliderInput(this.value)">
       </div>
 
-      <div class="grid grid-cols-7 text-xs text-slate-300 font-medium text-center border-t border-slate-800/80 pt-1.5 gap-0.5">
-        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-460)">
-          <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT A</div>
-          <div class="text-[10px] sm:text-[11px] text-slate-400">460–395</div>
+      <div class="grid grid-cols-7 text-xs text-slate-300 font-semibold text-center border-t border-slate-800/80 pt-2 gap-1">
+        <div class="hover:text-amber-400 cursor-pointer transition py-1" onclick="setYear(-460)">
+          <div class="font-extrabold text-slate-100">LT A</div>
+          <div class="text-[10px] text-slate-400">460–395</div>
         </div>
-        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-395)">
-          <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT B1</div>
-          <div class="text-[10px] sm:text-[11px] text-slate-400">395–325</div>
+        <div class="hover:text-amber-400 cursor-pointer transition py-1" onclick="setYear(-395)">
+          <div class="font-extrabold text-slate-100">LT B1</div>
+          <div class="text-[10px] text-slate-400">395–325</div>
         </div>
-        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-325)">
-          <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT B2</div>
-          <div class="text-[10px] sm:text-[11px] text-slate-400">325–255</div>
+        <div class="hover:text-amber-400 cursor-pointer transition py-1" onclick="setYear(-325)">
+          <div class="font-extrabold text-slate-100">LT B2</div>
+          <div class="text-[10px] text-slate-400">325–255</div>
         </div>
-        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-255)">
-          <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT C1</div>
-          <div class="text-[10px] sm:text-[11px] text-slate-400">255–170</div>
+        <div class="hover:text-amber-400 cursor-pointer transition py-1" onclick="setYear(-255)">
+          <div class="font-extrabold text-slate-100">LT C1</div>
+          <div class="text-[10px] text-slate-400">255–170</div>
         </div>
-        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-170)">
-          <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT C2</div>
-          <div class="text-[10px] sm:text-[11px] text-slate-400">170–120</div>
+        <div class="hover:text-amber-400 cursor-pointer transition py-1" onclick="setYear(-170)">
+          <div class="font-extrabold text-slate-100">LT C2</div>
+          <div class="text-[10px] text-slate-400">170–120</div>
         </div>
-        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-120)">
-          <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT D1</div>
-          <div class="text-[10px] sm:text-[11px] text-slate-400">120–65</div>
+        <div class="hover:text-amber-400 cursor-pointer transition py-1" onclick="setYear(-120)">
+          <div class="font-extrabold text-slate-100">LT D1</div>
+          <div class="text-[10px] text-slate-400">120–65</div>
         </div>
-        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-65)">
-          <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT D2</div>
-          <div class="text-[10px] sm:text-[11px] text-slate-400">65–25</div>
+        <div class="hover:text-amber-400 cursor-pointer transition py-1" onclick="setYear(-65)">
+          <div class="font-extrabold text-slate-100">LT D2</div>
+          <div class="text-[10px] text-slate-400">65–25</div>
         </div>
       </div>
 
     </div>
   </div>
 
-  <!-- SVG SPOJOVACÍ LINKA -->
+  <!-- SPOJOVACÍ LINKA -->
   <svg id="connectorSvg" class="fixed inset-0 w-full h-full pointer-events-none z-40 hidden">
     <defs>
       <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -275,8 +278,8 @@
         <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.5" />
       </linearGradient>
     </defs>
-    <path id="connectorLine" d="" stroke="url(#lineGradient)" stroke-width="2" fill="none" stroke-linecap="round" />
-    <circle id="connectorDot" r="4" fill="#f59e0b" />
+    <path id="connectorLine" d="" stroke="url(#lineGradient)" stroke-width="3" fill="none" stroke-linecap="round" />
+    <circle id="connectorDot" r="5" fill="#f59e0b" />
   </svg>
 
   <!-- BOČNÍ INFORMAČNÍ PANEL -->
@@ -288,9 +291,9 @@
       <div class="flex items-start justify-between p-5 sm:p-7 border-b border-slate-800 bg-slate-900/90">
         <div>
           <h2 id="modalTitle" class="text-xl sm:text-2xl lg:text-3xl font-bold text-white tracking-tight mb-2">Název lokality</h2>
-          <span id="modalCategory" class="inline-block px-3.5 py-1 text-xs sm:text-sm font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-full">Kategorie</span>
+          <span id="modalCategory" class="inline-block px-3.5 py-1 text-xs sm:text-sm font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-full">Kategorie</span>
         </div>
-        <button onclick="closeModal()" class="p-2.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-full transition border border-slate-700 flex-shrink-0 ml-4">
+        <button onclick="closeModal()" class="p-3 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-full transition border border-slate-700 flex-shrink-0 ml-4">
           <i data-lucide="x" class="w-6 h-6"></i>
         </button>
       </div>
@@ -303,11 +306,11 @@
       </div>
 
       <div id="modalFooter" class="flex items-center justify-between p-4 sm:p-6 border-t border-slate-800 bg-slate-900/90">
-        <button id="prevPageBtn" onclick="changePage(-1)" class="flex items-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm sm:text-base font-medium transition disabled:opacity-30 disabled:cursor-not-allowed border border-slate-700">
+        <button id="prevPageBtn" onclick="changePage(-1)" class="flex items-center gap-2 px-5 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm sm:text-base font-medium transition disabled:opacity-30 border border-slate-700">
           <i data-lucide="chevron-left" class="w-5 h-5"></i> Předchozí
         </button>
         <span id="pageIndicator" class="text-xs sm:text-sm font-medium text-slate-400 tracking-wider uppercase">Strana 1 z 1</span>
-        <button id="nextPageBtn" onclick="changePage(1)" class="flex items-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm sm:text-base font-medium transition disabled:opacity-30 disabled:cursor-not-allowed border border-slate-700">
+        <button id="nextPageBtn" onclick="changePage(1)" class="flex items-center gap-2 px-5 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm sm:text-base font-medium transition disabled:opacity-30 border border-slate-700">
           Další <i data-lucide="chevron-right" class="w-5 h-5"></i>
         </button>
       </div>
@@ -337,6 +340,7 @@
     ];
 
     let map;
+    let markerClusterGroup;
     let RAW_BOUNDS = null;
     let MAP_BOUNDS = null;
     let pointsData = [];
@@ -369,7 +373,7 @@
     function smoothSetView(targetCenter, targetZoom) {
       map.flyTo(targetCenter, targetZoom, {
         animate: true,
-        duration: 1.8,
+        duration: 1.5,
         easeLinearity: 0.25
       });
     }
@@ -486,6 +490,16 @@
           bounds: RAW_BOUNDS
         }).addTo(map);
 
+        // Inicializace shlukování (MarkerCluster)
+        markerClusterGroup = L.markerClusterGroup({
+          maxClusterRadius: 50,
+          spiderfyOnMaxZoom: true,
+          showCoverageOnHover: false,
+          zoomToBoundsOnClick: true,
+          disableClusteringAtZoom: 14
+        });
+        map.addLayer(markerClusterGroup);
+
         fitMapToCover();
 
         map.on('movestart zoomstart', () => {
@@ -578,7 +592,7 @@
     }
 
     function initMarkers() {
-      markersMap.forEach(marker => map.removeLayer(marker));
+      markerClusterGroup.clearLayers();
       markersMap.clear();
 
       pointsData.forEach(pt => {
@@ -594,13 +608,15 @@
               <img src="${iconSrc}" class="dot-image" title="${pt.title} (${pt.category || 'Nespecifikováno'})" alt="${pt.title}">
             </div>
           `,
-          iconSize: [36, 36],
-          iconAnchor: [18, 18]
+          iconSize: [52, 52],
+          iconAnchor: [26, 26]
         });
 
-        const marker = L.marker([pt.lat, pt.lng], { icon: customIcon }).addTo(map);
+        const marker = L.marker([pt.lat, pt.lng], { icon: customIcon });
         marker.on('click', () => onPointClick(pt, [pt.lat, pt.lng]));
+        
         markersMap.set(pt.id, marker);
+        markerClusterGroup.addLayer(marker);
       });
     }
 
@@ -610,18 +626,18 @@
         if (!marker) return;
 
         const isVisible = (currentYear >= pt.startYear && currentYear <= pt.endYear);
-        const element = marker.getElement();
 
-        if (element) {
-          if (isVisible) {
-            element.classList.remove('dot-hidden');
-          } else {
-            element.classList.add('dot-hidden');
+        if (isVisible) {
+          if (!markerClusterGroup.hasLayer(marker)) {
+            markerClusterGroup.addLayer(marker);
           }
-        }
-
-        if (!isVisible && activeMarkerId === pt.id) {
-          closeModal();
+        } else {
+          if (markerClusterGroup.hasLayer(marker)) {
+            markerClusterGroup.removeLayer(marker);
+          }
+          if (activeMarkerId === pt.id) {
+            closeModal();
+          }
         }
       });
     }
@@ -661,10 +677,8 @@
 
       pointsData.forEach(pt => {
         const marker = markersMap.get(pt.id);
-        if (!marker) return;
-        const element = marker.getElement();
-        if (element) {
-          element.classList.remove('dot-hidden');
+        if (marker && !markerClusterGroup.hasLayer(marker)) {
+          markerClusterGroup.addLayer(marker);
         }
       });
     }
@@ -806,7 +820,7 @@
         overlay.classList.remove('opacity-0');
         card.classList.remove('mist-hidden');
         card.classList.add('mist-visible');
-        setTimeout(updateConnectorLine, 800);
+        setTimeout(updateConnectorLine, 600);
       });
     }
 
@@ -864,7 +878,7 @@
 
       setTimeout(() => {
         overlay.classList.add('hidden');
-      }, 1200);
+      }, 500);
 
       setActiveMarker(null, null);
 
