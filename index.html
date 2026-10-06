@@ -18,7 +18,6 @@
 
   <style>
     :root {
-      /* Dynamické měřítko ikon řízené přes JavaScript podle zoomu */
       --icon-scale: 1;
     }
 
@@ -39,40 +38,27 @@
       width: 100vw;
       height: 100vh;
       z-index: 1;
-      background-color: transparent !important;
+      background-color: #0f172a !important;
     }
 
-    /* --- OCHRANA PROTI PROBLIKÁVÁNÍ MŘÍŽKY DLAŽDIC & VRSTVENÍ --- */
-    .leaflet-pane {
-      will-change: transform;
+    /* VRSTVENÍ PODKLADU A DLAŽDIC */
+    .leaflet-pane.bgPane-pane {
+      z-index: 100 !important; /* Spodní vrstva: podklad.jpeg */
     }
 
-    .leaflet-tile-container {
-      will-change: transform;
+    .leaflet-pane.tile-pane {
+      z-index: 200 !important; /* Horní vrstva: dlaždice z /tiles */
     }
 
     .leaflet-tile {
       image-rendering: -webkit-optimize-contrast !important;
       image-rendering: crisp-edges !important;
-      outline: 1px solid transparent !important;
       -webkit-backface-visibility: hidden;
       backface-visibility: hidden;
       transform: translate3d(0,0,0);
-      /* Překrytí mikroskopických mezer vznikajících zaokrouhlováním pixelů */
-      margin: -1px !important;
-      padding: 1px !important;
     }
 
-    /* Podkladový podklad.jpeg držíme vždy pod dlaždicemi */
-    .leaflet-pane.bgPane-pane {
-      z-index: 100 !important;
-    }
-
-    .leaflet-pane.tile-pane {
-      z-index: 200 !important;
-    }
-
-    /* --- STYLOVÁNÍ A STABILNÍ PLYNULÁ ANIMACE IKON --- */
+    /* IKONY A SPRAVODANÍ STAVŮ */
     .custom-dot-marker {
       background: none;
       border: none;
@@ -86,13 +72,9 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: opacity 1.8s cubic-bezier(0.25, 0.1, 0.25, 1);
+      transition: opacity 0.3s ease-out;
       opacity: 1;
       will-change: opacity;
-    }
-
-    .dot-wrapper.dot-fading-in {
-      opacity: 0 !important;
     }
 
     .dot-wrapper.dot-hidden {
@@ -108,20 +90,19 @@
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
       cursor: pointer;
       transform: scale(var(--icon-scale));
-      transition: transform 0.3s ease-out, box-shadow 0.2s ease-out;
+      transition: transform 0.2s ease-out;
       position: relative;
       z-index: 2;
-      will-change: transform;
     }
 
     .dot-wrapper:hover .dot-image {
       transform: scale(calc(var(--icon-scale) * 1.2));
-      box-shadow: 0 0 14px rgba(245, 158, 11, 0.8), 0 2px 12px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 0 14px rgba(245, 158, 11, 0.8);
     }
 
     .dot-wrapper.active .dot-image {
       transform: scale(calc(var(--icon-scale) * 1.3));
-      box-shadow: 0 0 18px rgba(245, 158, 11, 0.9), 0 2px 14px rgba(0, 0, 0, 0.7);
+      box-shadow: 0 0 18px rgba(245, 158, 11, 0.9);
     }
 
     .cluster-count-badge {
@@ -140,36 +121,9 @@
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
       pointer-events: none;
       transform: scale(var(--icon-scale));
-      transition: transform 0.3s ease-out;
     }
 
-    .dot-pulse {
-      position: absolute;
-      width: 60px;
-      height: 60px;
-      border-radius: 50%;
-      background-color: rgba(245, 158, 11, 0.5);
-      opacity: 0;
-      z-index: 1;
-      pointer-events: none;
-    }
-
-    .dot-wrapper.active .dot-pulse {
-      animation: radar-ripple 2s infinite ease-out;
-    }
-
-    @keyframes radar-ripple {
-      0% {
-        transform: scale(calc(var(--icon-scale) * 0.3));
-        opacity: 0.9;
-      }
-      100% {
-        transform: scale(calc(var(--icon-scale) * 2.2));
-        opacity: 0;
-      }
-    }
-
-    /* --- STYLOVÁNÍ POSUVNÍKU --- */
+    /* POSUVNÍK CASOVÉ OSY */
     input[type=range] {
       -webkit-appearance: none;
       width: 100%;
@@ -186,7 +140,6 @@
       cursor: pointer;
       background: #334155;
       border-radius: 2px;
-      border: none;
     }
 
     input[type=range]::-webkit-slider-thumb {
@@ -198,68 +151,42 @@
       cursor: pointer;
       -webkit-appearance: none;
       margin-top: -5px;
-      box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
-      transition: transform 0.15s ease, background-color 0.15s ease;
     }
 
-    input[type=range]::-webkit-slider-thumb:hover {
-      background: #60a5fa;
-      transform: scale(1.2);
-    }
-
-    /* --- SCROLLBAR --- */
-    .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
-    .custom-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 8px; }
-    .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 8px; }
-
-    /* --- STABILIZOVANÉ ZOBRAZENÍ TABULKY (PROBLIKÁVÁNÍ MOBILU FIXED) --- */
+    /* TABULKA A ANIMACE MOBILU BEZ BLIKÁNÍ */
     #sidePanelOverlay {
-      transition: opacity 0.4s ease-out;
-      will-change: opacity;
+      transition: opacity 0.3s ease-out;
     }
 
     #sidePanelCard {
-      transition: opacity 0.4s ease-out, transform 0.4s ease-out;
-      will-change: opacity, transform;
-      -webkit-backface-visibility: hidden;
-      backface-visibility: hidden;
+      transition: opacity 0.3s ease-out, transform 0.3s ease-out;
     }
 
     .mist-hidden {
       opacity: 0 !important;
-      transform: scale(0.96) translateY(12px) !important;
+      transform: translateY(8px) !important;
       pointer-events: none !important;
     }
 
     .mist-visible {
       opacity: 1 !important;
-      transform: scale(1) translateY(0) !important;
+      transform: translateY(0) !important;
       pointer-events: auto !important;
     }
 
-    /* Na mobilních zařízeních vypneme složité transformace, aby se zabránilo blikání Safari/Chrome renderu */
     @media (max-width: 639px) {
-      #sidePanelCard {
-        transition: opacity 0.3s ease-out !important;
-      }
-      .mist-hidden {
-        transform: none !important;
-      }
-      .mist-visible {
+      .mist-hidden, .mist-visible {
         transform: none !important;
       }
     }
 
-    /* --- SPOJOVACÍ LINKA --- */
     #connectorLine {
       stroke-dasharray: 8 4;
       animation: dash-animation 20s linear infinite;
     }
 
     @keyframes dash-animation {
-      to {
-        stroke-dashoffset: -100;
-      }
+      to { stroke-dashoffset: -100; }
     }
   </style>
 </head>
@@ -277,7 +204,7 @@
 
   <div id="map"></div>
 
-  <!-- KOMPAKTNÍ ČASOVÁ OSA -->
+  <!-- ČASOVÁ OSA -->
   <div class="absolute bottom-3 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-2xl pointer-events-auto">
     <div class="bg-slate-950/80 backdrop-blur-md border border-slate-700/50 rounded-xl px-3.5 py-2.5 shadow-xl flex flex-col gap-2">
       
@@ -342,7 +269,7 @@
     </div>
   </div>
 
-  <!-- SVG SPOJOVACÍ LINKA -->
+  <!-- SPOJOVACÍ LINKA -->
   <svg id="connectorSvg" class="fixed inset-0 w-full h-full pointer-events-none z-40 hidden">
     <defs>
       <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -370,7 +297,7 @@
         </button>
       </div>
 
-      <div class="p-5 sm:p-8 overflow-y-auto custom-scroll flex-1 space-y-6">
+      <div class="p-5 sm:p-8 overflow-y-auto flex-1 space-y-6">
         <div id="modalText" class="text-slate-300 text-base sm:text-lg leading-relaxed"></div>
         <div id="modalImageContainer" class="rounded-2xl overflow-hidden bg-slate-950/50 border border-slate-800 hidden">
           <img id="modalImage" src="" alt="" class="w-full h-64 sm:h-80 lg:h-96 object-cover">
@@ -432,19 +359,16 @@
     function updateIconScaleForZoom() {
       if (!map) return;
       const zoom = map.getZoom();
-      
       let scale = 1;
       if (zoom > 10) {
         scale = 1 + ((zoom - 10) / (CONFIG.maxZoom - 10)) * 0.55;
       }
-      
       document.documentElement.style.setProperty('--icon-scale', scale.toFixed(2));
     }
 
     function getCategoryIconPath(categoryStr) {
       if (!categoryStr) return 'sidliste.png';
       const cat = categoryStr.toString().toLowerCase();
-
       if (cat.includes('pohřebiště') || cat.includes('pohrebiste') || cat.includes('hrob')) {
         return 'pohrebiste.png';
       }
@@ -457,7 +381,7 @@
     function smoothSetView(targetCenter, targetZoom) {
       map.flyTo(targetCenter, targetZoom, {
         animate: true,
-        duration: 1.8,
+        duration: 1.5,
         easeLinearity: 0.25
       });
     }
@@ -531,16 +455,6 @@
       map.setView(RAW_BOUNDS.getCenter(), coverZoom, { animate: false });
     }
 
-    function triggerSmoothFadeIn(wrapperEl) {
-      if (!wrapperEl) return;
-      wrapperEl.classList.add('dot-fading-in');
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          wrapperEl.classList.remove('dot-fading-in');
-        });
-      });
-    }
-
     async function initMap() {
       try {
         await loadBoundsFromJgw();
@@ -558,10 +472,7 @@
           maxZoom: CONFIG.maxZoom,
           maxBounds: MAP_BOUNDS,
           maxBoundsViscosity: 1.0,
-          bounceAtZoomLimits: false,
-          fadeAnimation: true,
-          zoomAnimation: true,
-          markerZoomAnimation: true
+          bounceAtZoomLimits: false
         });
 
         markerClusterGroup = L.markerClusterGroup({
@@ -570,7 +481,6 @@
           spiderfyOnMaxZoom: true,
           removeOutsideVisibleBounds: false,
           disableClusteringAtZoom: CONFIG.targetZoom,
-          animateAddingMarkers: true,
           iconCreateFunction: function(cluster) {
             const count = cluster.getChildCount();
             const childMarkers = cluster.getAllChildMarkers();
@@ -583,9 +493,9 @@
             return L.divIcon({
               className: 'custom-dot-marker',
               html: `
-                <div class="dot-wrapper dot-fading-in" id="cluster-wrapper-${cluster._leaflet_id}">
+                <div class="dot-wrapper">
                   <div class="cluster-count-badge">${count}</div>
-                  <img src="${iconSrc}" class="dot-image" alt="Shluk bodů">
+                  <img src="${iconSrc}" class="dot-image" alt="Shluk">
                 </div>
               `,
               iconSize: [52, 52],
@@ -594,16 +504,11 @@
           }
         });
 
-        markerClusterGroup.on('animationend layeradd', () => {
-          document.querySelectorAll('.dot-wrapper.dot-fading-in').forEach(el => {
-            triggerSmoothFadeIn(el);
-          });
-        });
-
         map.addLayer(markerClusterGroup);
 
+        /* PANE Vytvoření a přesné seřazení z-indexů */
         map.createPane('bgPane');
-        map.getPane('bgPane').style.zIndex = 100;
+        map.getPane('bgPane').style.zIndex = 100; // Spodní vrstva
 
         L.imageOverlay('./podklad.jpeg', RAW_BOUNDS, {
           pane: 'bgPane',
@@ -611,15 +516,13 @@
           opacity: 1
         }).addTo(map);
 
+        // Standardní tilePane má v Leafletu z-index 200 (nad bgPane)
         L.tileLayer('./tiles/{z}/{x}/{y}.jpg', {
           minZoom: CONFIG.minZoom,
           maxZoom: CONFIG.maxZoom,
           tileSize: CONFIG.tileSize,
           noWrap: true,
           keepBuffer: 3,
-          updateWhenIdle: false,
-          updateWhenZooming: true,
-          unloadInvisibleTiles: false,
           bounds: RAW_BOUNDS
         }).addTo(map);
 
@@ -732,9 +635,8 @@
         const customIcon = L.divIcon({
           className: 'custom-dot-marker',
           html: `
-            <div class="dot-wrapper dot-fading-in" id="marker-wrapper-${pt.id}">
-              <div class="dot-pulse"></div>
-              <img src="${iconSrc}" class="dot-image" title="${pt.title} (${pt.category || 'Nespecifikováno'})" alt="${pt.title}">
+            <div class="dot-wrapper" id="marker-wrapper-${pt.id}">
+              <img src="${iconSrc}" class="dot-image" title="${pt.title}" alt="${pt.title}">
             </div>
           `,
           iconSize: [52, 52],
@@ -747,14 +649,6 @@
         });
         
         marker.on('click', () => onPointClick(pt, [pt.lat, pt.lng]));
-
-        marker.on('add', () => {
-          setTimeout(() => {
-            const el = document.getElementById(`marker-wrapper-${pt.id}`);
-            if (el) triggerSmoothFadeIn(el);
-          }, 20);
-        });
-
         markersMap.set(pt.id, marker);
         markerClusterGroup.addLayer(marker);
       });
@@ -775,30 +669,35 @@
           if (!markerClusterGroup.hasLayer(marker)) {
             markersToAdd.push(marker);
           }
-          if (wrapperEl) {
-            wrapperEl.classList.remove('dot-hidden');
-            triggerSmoothFadeIn(wrapperEl);
-          }
+          if (wrapperEl) wrapperEl.classList.remove('dot-hidden');
         } else {
-          if (wrapperEl) {
-            wrapperEl.classList.add('dot-hidden');
-          }
+          if (wrapperEl) wrapperEl.classList.add('dot-hidden');
           if (markerClusterGroup.hasLayer(marker)) {
             markersToRemove.push(marker);
           }
         }
-
-        if (!isVisible && activeMarkerId === pt.id) {
-          closeModal();
-        }
       });
 
-      if (markersToRemove.length > 0) {
-        markerClusterGroup.removeLayers(markersToRemove);
-      }
-      if (markersToAdd.length > 0) {
-        markerClusterGroup.addLayers(markersToAdd);
-      }
+      if (markersToRemove.length > 0) markerClusterGroup.removeLayers(markersToRemove);
+      if (markersToAdd.length > 0) markerClusterGroup.addLayers(markersToAdd);
+    }
+
+    /* BEZPEČNÉ OBNOVENÍ VŠECH BODŮ PRO TLAČÍTKO "ZOBRAZIT VŠE" */
+    function showAllPoints() {
+      if (isPlaying) stopPlay();
+
+      document.getElementById('currentPeriodLabel').innerText = 'Všechna období';
+      document.getElementById('currentYearLabel').innerText = '460 – 25 př. n. l.';
+
+      const allMarkers = Array.from(markersMap.values());
+      markerClusterGroup.addLayers(allMarkers);
+
+      pointsData.forEach(pt => {
+        const wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
+        if (wrapperEl) {
+          wrapperEl.classList.remove('dot-hidden');
+        }
+      });
     }
 
     function onSliderInput(val) {
@@ -825,37 +724,6 @@
         periodLabel.innerText = currentPeriod.name;
       } else {
         periodLabel.innerText = 'LT období';
-      }
-    }
-
-    function showAllPoints() {
-      if (isPlaying) stopPlay();
-
-      document.getElementById('currentPeriodLabel').innerText = 'Všechna období';
-      document.getElementById('currentYearLabel').innerText = '460 – 25 př. n. l.';
-
-      const markersToAdd = [];
-      pointsData.forEach(pt => {
-        const marker = markersMap.get(pt.id);
-        if (!marker) return;
-
-        if (!markerClusterGroup.hasLayer(marker)) {
-          markersToAdd.push(marker);
-        }
-
-        const wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
-        if (wrapperEl) {
-          wrapperEl.classList.remove('dot-hidden');
-          triggerSmoothFadeIn(wrapperEl);
-        }
-      });
-
-      if (markersToAdd.length > 0) {
-        markerClusterGroup.addLayers(markersToAdd);
-      }
-      
-      if (markerClusterGroup.refreshClusters) {
-        markerClusterGroup.refreshClusters();
       }
     }
 
@@ -980,7 +848,6 @@
       }
     }
 
-    /* PLYNULÉ OTEVŘENÍ MODÁLU BEZ PROBLIKNUTÍ */
     function openModal(point) {
       currentPoint = point;
       currentPageIndex = 0;
@@ -993,15 +860,12 @@
 
       overlay.classList.remove('hidden');
 
-      // Dvojité requestAnimationFrame zajistí správné vykreslení a zahájení přechodu bez probliknutí
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          overlay.classList.remove('opacity-0');
-          card.classList.remove('mist-hidden');
-          card.classList.add('mist-visible');
-          setTimeout(updateConnectorLine, 400);
-        });
-      });
+      setTimeout(() => {
+        overlay.classList.remove('opacity-0');
+        card.classList.remove('mist-hidden');
+        card.classList.add('mist-visible');
+        setTimeout(updateConnectorLine, 350);
+      }, 20);
     }
 
     function formatTextToParagraphs(rawText) {
@@ -1047,7 +911,6 @@
       }
     }
 
-    /* PLYNULÉ ZAVŘENÍ MODÁLU BEZ PROBLIKNUTÍ */
     function closeModal() {
       const overlay = document.getElementById('sidePanelOverlay');
       const card = document.getElementById('sidePanelCard');
@@ -1059,7 +922,7 @@
 
       setTimeout(() => {
         overlay.classList.add('hidden');
-      }, 400);
+      }, 300);
 
       setActiveMarker(null, null);
 
