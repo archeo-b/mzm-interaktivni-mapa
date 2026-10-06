@@ -468,10 +468,10 @@
           maxZoom: CONFIG.maxZoom,
           tileSize: CONFIG.tileSize,
           noWrap: true,
-          keepBuffer: 10,
-          updateWhenIdle: false,
-          updateWhenZooming: true,
-          unloadInvisibleTiles: false,
+          keepBuffer: 1,              // Načítá pouze 1 dlaždici za okraj obrazovky
+          updateWhenIdle: true,       // Nové dlaždice načítá až po dokončení posunu/zoomu
+          updateWhenZooming: false,   // Během plynulého zoomování nezatěžuje síť novými dlaždicemi
+          unloadInvisibleTiles: true, // Okamžitě mazat nevystavené dlaždice z paměti
           bounds: RAW_BOUNDS
         }).addTo(map);
 
