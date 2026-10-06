@@ -41,7 +41,7 @@
       outline: 1px solid transparent;
     }
 
-    /* --- STYLOVÁNÍ IKON A SHLUKŮ --- */
+    /* --- STYLOVÁNÍ A STABILNÍ PLYNULÁ ANIMACE IKON --- */
     .custom-dot-marker {
       background: none;
       border: none;
@@ -51,8 +51,8 @@
     /* Vnitřní obal řídí POUZE průhlednost (opacity) */
     .dot-wrapper {
       position: relative;
-      width: 42px;
-      height: 42px;
+      width: 36px;
+      height: 36px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -68,11 +68,11 @@
 
     /* Styl samotné kruhové ikony */
     .dot-image {
-      width: 36px;
-      height: 36px;
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
       object-fit: cover;
-      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
       cursor: pointer;
       transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
       position: relative;
@@ -80,16 +80,16 @@
     }
 
     .dot-wrapper:hover .dot-image {
-      transform: scale(1.22);
-      box-shadow: 0 0 14px rgba(245, 158, 11, 0.85), 0 3px 12px rgba(0, 0, 0, 0.7);
+      transform: scale(1.25);
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.8), 0 2px 10px rgba(0, 0, 0, 0.6);
     }
 
     .dot-wrapper.active .dot-image {
-      transform: scale(1.32);
-      box-shadow: 0 0 18px rgba(245, 158, 11, 0.95), 0 3px 14px rgba(0, 0, 0, 0.8);
+      transform: scale(1.35);
+      box-shadow: 0 0 16px rgba(245, 158, 11, 0.9), 0 2px 12px rgba(0, 0, 0, 0.7);
     }
 
-    /* SHLUKOVÁ IKONA */
+    /* STYL SHLUKOVÉ IKONY (KRYJE SE) */
     .custom-cluster-marker {
       background: none;
       border: none;
@@ -97,8 +97,8 @@
 
     .cluster-wrapper {
       position: relative;
-      width: 44px;
-      height: 44px;
+      width: 38px;
+      height: 38px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -106,32 +106,32 @@
     }
 
     .cluster-image {
-      width: 38px;
-      height: 38px;
+      width: 34px;
+      height: 34px;
       border-radius: 50%;
       object-fit: cover;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.65);
-      border: 2px solid rgba(245, 158, 11, 0.8);
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.65);
+      border: 2px solid rgba(245, 158, 11, 0.85);
       transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
 
     .cluster-wrapper:hover .cluster-image {
       transform: scale(1.15);
-      box-shadow: 0 0 16px rgba(245, 158, 11, 0.9);
+      box-shadow: 0 0 14px rgba(245, 158, 11, 0.9);
     }
 
     .cluster-badge {
       position: absolute;
-      top: -2px;
-      right: -2px;
+      top: -3px;
+      right: -3px;
       background: linear-gradient(135deg, #f59e0b, #d97706);
       color: #ffffff;
       font-weight: 800;
-      font-size: 11px;
-      padding: 2px 6px;
-      border-radius: 12px;
+      font-size: 10px;
+      padding: 2px 5px;
+      border-radius: 10px;
       border: 1.5px solid #0f172a;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
       z-index: 3;
       line-height: 1;
     }
@@ -139,8 +139,8 @@
     /* Efekt pulzu pod aktivní ikonou */
     .dot-pulse {
       position: absolute;
-      width: 48px;
-      height: 48px;
+      width: 44px;
+      height: 44px;
       border-radius: 50%;
       background-color: rgba(245, 158, 11, 0.5);
       opacity: 0;
@@ -206,7 +206,7 @@
     .custom-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 8px; }
     .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 8px; }
 
-    /* --- ZOBRAZENÍ TABULKY --- */
+    /* --- ČISTÉ A PRODLOUŽENÉ ZOBRAZENÍ TABULKY (1.2s) --- */
     #sidePanelOverlay {
       transition: opacity 1.2s cubic-bezier(0.25, 0.1, 0.25, 1);
     }
@@ -538,9 +538,9 @@
           bounds: RAW_BOUNDS
         }).addTo(map);
 
-        /* NASTAVENÍ SHLUKOVÁNÍ POUZE PŘI VZÁJEMNÉM PŘEKRYTÍ (maxClusterRadius: 21px = půlka velikosti 42px ikony) */
+        /* SHLUKOVACÍ GRUPA: Překrytí nastaveno na poloměr ikony (18px) */
         clusterGroup = L.markerClusterGroup({
-          maxClusterRadius: 21,
+          maxClusterRadius: 18,
           spiderfyOnMaxZoom: true,
           showCoverageOnHover: false,
           zoomToBoundsOnClick: true,
@@ -562,8 +562,8 @@
                 </div>
               `,
               className: 'custom-cluster-marker',
-              iconSize: [44, 44],
-              iconAnchor: [22, 22]
+              iconSize: [38, 38],
+              iconAnchor: [19, 19]
             });
           }
         });
@@ -678,15 +678,15 @@
               <img src="${iconSrc}" class="dot-image" title="${pt.title} (${pt.category || 'Nespecifikováno'})" alt="${pt.title}">
             </div>
           `,
-          iconSize: [42, 42],
-          iconAnchor: [21, 21]
+          iconSize: [36, 36],
+          iconAnchor: [18, 18]
         });
 
         const marker = L.marker([pt.lat, pt.lng], { 
           icon: customIcon,
-          category: pt.category 
+          category: pt.category
         });
-        
+
         marker.on('click', () => onPointClick(pt, [pt.lat, pt.lng]));
         markersMap.set(pt.id, marker);
       });
