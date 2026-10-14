@@ -50,12 +50,7 @@
       pointer-events: auto;
     }
 
-    /* Plynulá CSS animace náběhu při vykreslení jakéhokoliv bodu nebo shluku */
-    @keyframes dotFadeIn {
-      from { opacity: 0; transform: scale(0.8); }
-      to { opacity: 1; transform: scale(1); }
-    }
-
+    /* Plynulý přechod průhlednosti v obou směrech (náběh i mizení) */
     .dot-wrapper {
       position: relative;
       width: 52px;
@@ -63,9 +58,15 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1);
       opacity: 1;
-      will-change: opacity, transform;
-      animation: dotFadeIn 0.3s ease-out forwards;
+      will-change: opacity;
+    }
+
+    /* Skrytý stav při filtraci časovou osou */
+    .dot-wrapper.dot-hidden {
+      opacity: 0 !important;
+      pointer-events: none !important;
     }
 
     .dot-image {
@@ -363,6 +364,7 @@
     let MAP_BOUNDS = null;
     let pointsData = [];
     let markersMap = new Map();
+    let markerTimeouts = new Map();
 
     let activeMarkerId = null;
     let activePointLatLng = null;
@@ -385,6 +387,11 @@
         }
       }
       return undefined;
+    }
+
+    function cancelAllMarkerTimeouts() {
+      markerTimeouts.forEach(tId => clearTimeout(tId));
+      markerTimeouts.clear();
     }
 
     function updateIconScaleForZoom() {
@@ -517,10 +524,23 @@
           spiderfyOnMaxZoom: true,
           removeOutsideVisibleBounds: false,
           disableClusteringAtZoom: CONFIG.targetZoom,
-          animate: true,
           iconCreateFunction: function(cluster) {
-            const count = cluster.getChildCount();
             const childMarkers = cluster.getAllChildMarkers();
+            
+            // Spočítáme pouze skutečně viditelné body ve shluku (které nemají třídu dot-hidden)
+            let visibleCount = 0;
+            childMarkers.forEach(m => {
+              if (m.options.pointData) {
+                const el = document.getElementById(`marker-wrapper-${m.options.pointData.id}`);
+                if (!el || !el.classList.contains('dot-hidden')) {
+                  visibleCount++;
+                }
+              }
+            });
+
+            // Pokud mizí body a zbývá 1 či méně viditelných, badge s číslem nezobrazíme uopšte
+            const displayCount = visibleCount > 0 ? visibleCount : cluster.getChildCount();
+            const badgeHtml = displayCount > 1 ? `<div class="cluster-count-badge">${displayCount}</div>` : '';
             
             let iconSrc = 'sidliste.png';
             if (childMarkers.length > 0 && childMarkers[0].options.pointData) {
@@ -531,7 +551,7 @@
               className: 'custom-dot-marker',
               html: `
                 <div class="dot-wrapper" id="cluster-wrapper-${cluster._leaflet_id}">
-                  <div class="cluster-count-badge">${count}</div>
+                  ${badgeHtml}
                   <img src="${iconSrc}" class="dot-image" alt="Shluk bodů">
                 </div>
               `,
@@ -669,12 +689,11 @@
     }
 
     function initMarkers() {
+      cancelAllMarkerTimeouts();
       if (markerClusterGroup) {
         markerClusterGroup.clearLayers();
       }
       markersMap.clear();
-
-      const allMarkers = [];
 
       pointsData.forEach(pt => {
         const iconSrc = getCategoryIconPath(pt.category);
@@ -699,39 +718,54 @@
         marker.on('click', () => onPointClick(pt, [pt.lat, pt.lng]));
 
         markersMap.set(pt.id, marker);
-        allMarkers.push(marker);
+        markerClusterGroup.addLayer(marker);
       });
-
-      if (allMarkers.length > 0) {
-        markerClusterGroup.addLayers(allMarkers);
-      }
     }
 
     function updateMapPointsVisibility(currentYear) {
-      const toAdd = [];
-      const toRemove = [];
-
       pointsData.forEach(pt => {
         const marker = markersMap.get(pt.id);
         if (!marker) return;
 
-        const isVisible = (currentYear >= pt.startYear && currentYear <= pt.endYear);
-        const hasLayer = markerClusterGroup.hasLayer(marker);
+        if (markerTimeouts.has(pt.id)) {
+          clearTimeout(markerTimeouts.get(pt.id));
+          markerTimeouts.delete(pt.id);
+        }
 
-        if (isVisible && !hasLayer) {
-          toAdd.push(marker);
-        } else if (!isVisible && hasLayer) {
-          toRemove.push(marker);
+        const isVisible = (currentYear >= pt.startYear && currentYear <= pt.endYear);
+        let wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
+
+        if (isVisible) {
+          if (!markerClusterGroup.hasLayer(marker)) {
+            markerClusterGroup.addLayer(marker);
+          }
+          
+          // Plynulý náběh přes vteřinový kaskádový rozsek pro prohlížeč
+          requestAnimationFrame(() => {
+            wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
+            if (wrapperEl) {
+              wrapperEl.classList.remove('dot-hidden');
+            }
+          });
+        } else {
+          if (wrapperEl) {
+            wrapperEl.classList.add('dot-hidden');
+            const tId = setTimeout(() => {
+              if (wrapperEl.classList.contains('dot-hidden') && markerClusterGroup.hasLayer(marker)) {
+                markerClusterGroup.removeLayer(marker);
+              }
+              markerTimeouts.delete(pt.id);
+            }, 1200);
+            markerTimeouts.set(pt.id, tId);
+          } else if (markerClusterGroup.hasLayer(marker)) {
+            markerClusterGroup.removeLayer(marker);
+          }
         }
 
         if (!isVisible && activeMarkerId === pt.id) {
           closeModal();
         }
       });
-
-      // Přímá, okamžitá a čistá správa shlukovací vrstvy
-      if (toRemove.length > 0) markerClusterGroup.removeLayers(toRemove);
-      if (toAdd.length > 0) markerClusterGroup.addLayers(toAdd);
     }
 
     function onSliderInput(val) {
@@ -763,23 +797,26 @@
 
     function showAllPoints() {
       if (isPlaying) stopPlay();
+      cancelAllMarkerTimeouts();
 
       document.getElementById('currentPeriodLabel').innerText = 'Všechna období';
       document.getElementById('currentYearLabel').innerText = '460 – 25 př. n. l.';
 
-      const toAdd = [];
       pointsData.forEach(pt => {
         const marker = markersMap.get(pt.id);
         if (!marker) return;
 
         if (!markerClusterGroup.hasLayer(marker)) {
-          toAdd.push(marker);
+          markerClusterGroup.addLayer(marker);
         }
+        
+        requestAnimationFrame(() => {
+          const wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
+          if (wrapperEl) {
+            wrapperEl.classList.remove('dot-hidden');
+          }
+        });
       });
-
-      if (toAdd.length > 0) {
-        markerClusterGroup.addLayers(toAdd);
-      }
     }
 
     function togglePlay() {
