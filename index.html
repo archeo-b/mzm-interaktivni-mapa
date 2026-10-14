@@ -50,7 +50,6 @@
       pointer-events: auto;
     }
 
-    /* Plynulý přechod průhlednosti v obou směrech (náběh i mizení) */
     .dot-wrapper {
       position: relative;
       width: 52px;
@@ -63,7 +62,6 @@
       will-change: opacity;
     }
 
-    /* Skrytý stav při filtraci časovou osou */
     .dot-wrapper.dot-hidden {
       opacity: 0 !important;
       pointer-events: none !important;
@@ -712,6 +710,9 @@
     }
 
     function updateMapPointsVisibility(currentYear) {
+      const markersToAdd = [];
+      const markersToRemoveDirectly = [];
+
       pointsData.forEach(pt => {
         const marker = markersMap.get(pt.id);
         if (!marker) return;
@@ -726,7 +727,7 @@
 
         if (isVisible) {
           if (!markerClusterGroup.hasLayer(marker)) {
-            markerClusterGroup.addLayer(marker);
+            markersToAdd.push(marker);
           }
           
           requestAnimationFrame(() => {
@@ -746,7 +747,7 @@
             }, 1200);
             markerTimeouts.set(pt.id, tId);
           } else if (markerClusterGroup.hasLayer(marker)) {
-            markerClusterGroup.removeLayer(marker);
+            markersToRemoveDirectly.push(marker);
           }
         }
 
@@ -754,6 +755,14 @@
           closeModal();
         }
       });
+
+      // Dávková úprava shlukovače bez dočasných mezipoloh
+      if (markersToRemoveDirectly.length > 0) {
+        markerClusterGroup.removeLayers(markersToRemoveDirectly);
+      }
+      if (markersToAdd.length > 0) {
+        markerClusterGroup.addLayers(markersToAdd);
+      }
     }
 
     function onSliderInput(val) {
@@ -790,12 +799,13 @@
       document.getElementById('currentPeriodLabel').innerText = 'Všechna období';
       document.getElementById('currentYearLabel').innerText = '460 – 25 př. n. l.';
 
+      const markersToAdd = [];
       pointsData.forEach(pt => {
         const marker = markersMap.get(pt.id);
         if (!marker) return;
 
         if (!markerClusterGroup.hasLayer(marker)) {
-          markerClusterGroup.addLayer(marker);
+          markersToAdd.push(marker);
         }
         
         requestAnimationFrame(() => {
@@ -805,6 +815,10 @@
           }
         });
       });
+
+      if (markersToAdd.length > 0) {
+        markerClusterGroup.addLayers(markersToAdd);
+      }
     }
 
     function togglePlay() {
