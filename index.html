@@ -523,6 +523,7 @@
           zoomToBoundsOnClick: true,
           spiderfyOnMaxZoom: true,
           removeOutsideVisibleBounds: false,
+          singleMarkerMode: false,
           disableClusteringAtZoom: CONFIG.targetZoom,
           iconCreateFunction: function(cluster) {
             const count = cluster.getChildCount();
@@ -533,11 +534,13 @@
               iconSrc = getCategoryIconPath(childMarkers[0].options.pointData.category);
             }
 
+            const badgeHtml = count > 1 ? `<div class="cluster-count-badge">${count}</div>` : '';
+
             return L.divIcon({
               className: 'custom-dot-marker',
               html: `
                 <div class="dot-wrapper" id="cluster-wrapper-${cluster._leaflet_id}">
-                  <div class="cluster-count-badge">${count}</div>
+                  ${badgeHtml}
                   <img src="${iconSrc}" class="dot-image" alt="Shluk bodů">
                 </div>
               `,
@@ -726,7 +729,6 @@
             markerClusterGroup.addLayer(marker);
           }
           
-          // Plynulý náběh přes vteřinový kaskádový rozsek pro prohlížeč
           requestAnimationFrame(() => {
             wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
             if (wrapperEl) {
