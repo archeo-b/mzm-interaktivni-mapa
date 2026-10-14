@@ -377,6 +377,7 @@
     let isPlaying = false;
     let playInterval = null;
     let isMapAnimating = false;
+    let isShowingAll = true;
 
     function getRowVal(row, ...keys) {
       if (!row) return undefined;
@@ -527,19 +528,24 @@
           iconCreateFunction: function(cluster) {
             const childMarkers = cluster.getAllChildMarkers();
             
-            // Spočítáme pouze skutečně viditelné body ve shluku (které nemají třídu dot-hidden)
-            let visibleCount = 0;
-            childMarkers.forEach(m => {
-              if (m.options.pointData) {
-                const el = document.getElementById(`marker-wrapper-${m.options.pointData.id}`);
-                if (!el || !el.classList.contains('dot-hidden')) {
-                  visibleCount++;
+            let displayCount = cluster.getChildCount();
+            
+            if (!isShowingAll) {
+              const slider = document.getElementById('timeSlider');
+              const currentYear = slider ? parseInt(slider.value, 10) : -460;
+              
+              let activeCount = 0;
+              childMarkers.forEach(m => {
+                if (m.options.pointData) {
+                  const pt = m.options.pointData;
+                  if (currentYear >= pt.startYear && currentYear <= pt.endYear) {
+                    activeCount++;
+                  }
                 }
-              }
-            });
+              });
+              displayCount = activeCount > 0 ? activeCount : cluster.getChildCount();
+            }
 
-            // Pokud mizí body a zbývá 1 či méně viditelných, badge s číslem nezobrazíme uopšte
-            const displayCount = visibleCount > 0 ? visibleCount : cluster.getChildCount();
             const badgeHtml = displayCount > 1 ? `<div class="cluster-count-badge">${displayCount}</div>` : '';
             
             let iconSrc = 'sidliste.png';
@@ -723,6 +729,7 @@
     }
 
     function updateMapPointsVisibility(currentYear) {
+      isShowingAll = false;
       pointsData.forEach(pt => {
         const marker = markersMap.get(pt.id);
         if (!marker) return;
@@ -740,7 +747,6 @@
             markerClusterGroup.addLayer(marker);
           }
           
-          // Plynulý náběh přes vteřinový kaskádový rozsek pro prohlížeč
           requestAnimationFrame(() => {
             wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
             if (wrapperEl) {
@@ -799,6 +805,7 @@
       if (isPlaying) stopPlay();
       cancelAllMarkerTimeouts();
 
+      isShowingAll = true;
       document.getElementById('currentPeriodLabel').innerText = 'Všechna období';
       document.getElementById('currentYearLabel').innerText = '460 – 25 př. n. l.';
 
@@ -817,6 +824,10 @@
           }
         });
       });
+
+      if (markerClusterGroup) {
+        markerClusterGroup.refreshClusters();
+      }
     }
 
     function togglePlay() {
