@@ -50,6 +50,12 @@
       pointer-events: auto;
     }
 
+    /* Plynulá CSS animace náběhu při vykreslení jakéhokoliv bodu nebo shluku */
+    @keyframes dotFadeIn {
+      from { opacity: 0; transform: scale(0.8); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
     .dot-wrapper {
       position: relative;
       width: 52px;
@@ -57,14 +63,9 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1);
       opacity: 1;
-      will-change: opacity;
-    }
-
-    .dot-wrapper.dot-hidden {
-      opacity: 0 !important;
-      pointer-events: none !important;
+      will-change: opacity, transform;
+      animation: dotFadeIn 0.3s ease-out forwards;
     }
 
     .dot-image {
@@ -362,7 +363,6 @@
     let MAP_BOUNDS = null;
     let pointsData = [];
     let markersMap = new Map();
-    let markerTimeouts = new Map();
 
     let activeMarkerId = null;
     let activePointLatLng = null;
@@ -385,11 +385,6 @@
         }
       }
       return undefined;
-    }
-
-    function cancelAllMarkerTimeouts() {
-      markerTimeouts.forEach(tId => clearTimeout(tId));
-      markerTimeouts.clear();
     }
 
     function updateIconScaleForZoom() {
@@ -521,8 +516,8 @@
           zoomToBoundsOnClick: true,
           spiderfyOnMaxZoom: true,
           removeOutsideVisibleBounds: false,
-          singleMarkerMode: false,
           disableClusteringAtZoom: CONFIG.targetZoom,
+          animate: true,
           iconCreateFunction: function(cluster) {
             const count = cluster.getChildCount();
             const childMarkers = cluster.getAllChildMarkers();
@@ -532,13 +527,11 @@
               iconSrc = getCategoryIconPath(childMarkers[0].options.pointData.category);
             }
 
-            const badgeHtml = count > 1 ? `<div class="cluster-count-badge">${count}</div>` : '';
-
             return L.divIcon({
               className: 'custom-dot-marker',
               html: `
                 <div class="dot-wrapper" id="cluster-wrapper-${cluster._leaflet_id}">
-                  ${badgeHtml}
+                  <div class="cluster-count-badge">${count}</div>
                   <img src="${iconSrc}" class="dot-image" alt="Shluk bodů">
                 </div>
               `,
@@ -676,11 +669,12 @@
     }
 
     function initMarkers() {
-      cancelAllMarkerTimeouts();
       if (markerClusterGroup) {
         markerClusterGroup.clearLayers();
       }
       markersMap.clear();
+
+      const allMarkers = [];
 
       pointsData.forEach(pt => {
         const iconSrc = getCategoryIconPath(pt.category);
@@ -705,50 +699,29 @@
         marker.on('click', () => onPointClick(pt, [pt.lat, pt.lng]));
 
         markersMap.set(pt.id, marker);
-        markerClusterGroup.addLayer(marker);
+        allMarkers.push(marker);
       });
+
+      if (allMarkers.length > 0) {
+        markerClusterGroup.addLayers(allMarkers);
+      }
     }
 
     function updateMapPointsVisibility(currentYear) {
-      const markersToAdd = [];
-      const markersToRemoveDirectly = [];
+      const toAdd = [];
+      const toRemove = [];
 
       pointsData.forEach(pt => {
         const marker = markersMap.get(pt.id);
         if (!marker) return;
 
-        if (markerTimeouts.has(pt.id)) {
-          clearTimeout(markerTimeouts.get(pt.id));
-          markerTimeouts.delete(pt.id);
-        }
-
         const isVisible = (currentYear >= pt.startYear && currentYear <= pt.endYear);
-        let wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
+        const hasLayer = markerClusterGroup.hasLayer(marker);
 
-        if (isVisible) {
-          if (!markerClusterGroup.hasLayer(marker)) {
-            markersToAdd.push(marker);
-          }
-          
-          requestAnimationFrame(() => {
-            wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
-            if (wrapperEl) {
-              wrapperEl.classList.remove('dot-hidden');
-            }
-          });
-        } else {
-          if (wrapperEl) {
-            wrapperEl.classList.add('dot-hidden');
-            const tId = setTimeout(() => {
-              if (wrapperEl.classList.contains('dot-hidden') && markerClusterGroup.hasLayer(marker)) {
-                markerClusterGroup.removeLayer(marker);
-              }
-              markerTimeouts.delete(pt.id);
-            }, 1200);
-            markerTimeouts.set(pt.id, tId);
-          } else if (markerClusterGroup.hasLayer(marker)) {
-            markersToRemoveDirectly.push(marker);
-          }
+        if (isVisible && !hasLayer) {
+          toAdd.push(marker);
+        } else if (!isVisible && hasLayer) {
+          toRemove.push(marker);
         }
 
         if (!isVisible && activeMarkerId === pt.id) {
@@ -756,13 +729,9 @@
         }
       });
 
-      // Dávková úprava shlukovače bez dočasných mezipoloh
-      if (markersToRemoveDirectly.length > 0) {
-        markerClusterGroup.removeLayers(markersToRemoveDirectly);
-      }
-      if (markersToAdd.length > 0) {
-        markerClusterGroup.addLayers(markersToAdd);
-      }
+      // Přímá, okamžitá a čistá správa shlukovací vrstvy
+      if (toRemove.length > 0) markerClusterGroup.removeLayers(toRemove);
+      if (toAdd.length > 0) markerClusterGroup.addLayers(toAdd);
     }
 
     function onSliderInput(val) {
@@ -794,30 +763,22 @@
 
     function showAllPoints() {
       if (isPlaying) stopPlay();
-      cancelAllMarkerTimeouts();
 
       document.getElementById('currentPeriodLabel').innerText = 'Všechna období';
       document.getElementById('currentYearLabel').innerText = '460 – 25 př. n. l.';
 
-      const markersToAdd = [];
+      const toAdd = [];
       pointsData.forEach(pt => {
         const marker = markersMap.get(pt.id);
         if (!marker) return;
 
         if (!markerClusterGroup.hasLayer(marker)) {
-          markersToAdd.push(marker);
+          toAdd.push(marker);
         }
-        
-        requestAnimationFrame(() => {
-          const wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
-          if (wrapperEl) {
-            wrapperEl.classList.remove('dot-hidden');
-          }
-        });
       });
 
-      if (markersToAdd.length > 0) {
-        markerClusterGroup.addLayers(markersToAdd);
+      if (toAdd.length > 0) {
+        markerClusterGroup.addLayers(toAdd);
       }
     }
 
