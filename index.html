@@ -254,31 +254,31 @@
       </div>
 
       <div class="grid grid-cols-7 text-xs text-slate-300 font-medium text-center border-t border-slate-800/80 pt-1.5 gap-0.5">
-        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-460)">
+        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setPeriod('LT A')">
           <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT A</div>
           <div class="text-[10px] sm:text-[11px] text-slate-400">460–395</div>
         </div>
-        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-395)">
+        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setPeriod('LT B1')">
           <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT B1</div>
           <div class="text-[10px] sm:text-[11px] text-slate-400">395–325</div>
         </div>
-        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-325)">
+        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setPeriod('LT B2')">
           <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT B2</div>
           <div class="text-[10px] sm:text-[11px] text-slate-400">325–255</div>
         </div>
-        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-255)">
+        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setPeriod('LT C1')">
           <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT C1</div>
           <div class="text-[10px] sm:text-[11px] text-slate-400">255–170</div>
         </div>
-        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-170)">
+        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setPeriod('LT C2')">
           <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT C2</div>
           <div class="text-[10px] sm:text-[11px] text-slate-400">170–120</div>
         </div>
-        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-120)">
+        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setPeriod('LT D1')">
           <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT D1</div>
           <div class="text-[10px] sm:text-[11px] text-slate-400">120–65</div>
         </div>
-        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setYear(-65)">
+        <div class="hover:text-blue-300 cursor-pointer transition py-0.5" onclick="setPeriod('LT D2')">
           <div class="font-extrabold text-slate-200 text-xs sm:text-sm">LT D2</div>
           <div class="text-[10px] sm:text-[11px] text-slate-400">65–25</div>
         </div>
@@ -626,19 +626,14 @@
 
       let foundIndices = [];
       PERIOD_BOUNDS.forEach((p, idx) => {
-        // Hledáme přesnou shodu tokenu (např. abychom odlišili "LT B" od "LT B1" nebo "LT B2")
         const code = p.name.replace(/\s+/g, '');
-        
-        // Zkontrolujeme, zda text obsahuje přesný název období oddělený hranicemi (čárka, pomlčka, konec řetězce atd.)
         const regex = new RegExp(`\\b${code}\\b`, 'i');
         if (regex.test(str) || str === code) {
           foundIndices.push(idx);
         }
       });
 
-      // Pokud selže přesná word boundary, zkusíme prosté zahrnutí podřetězce s prioritou delších řetězců
       if (foundIndices.length === 0) {
-        // Seřadíme periody sestupně podle délky názvu (např. LT B1 před LT B)
         const sortedPeriods = [...PERIOD_BOUNDS].map((p, idx) => ({ ...p, originalIdx: idx }))
           .sort((a, b) => b.name.length - a.name.length);
         
@@ -646,7 +641,7 @@
           const code = p.name.replace(/\s+/g, '');
           if (str.includes(code)) {
             foundIndices.push(p.originalIdx);
-            break; // Najdeme první největší shodu
+            break;
           }
         }
       }
@@ -756,7 +751,9 @@
           markerTimeouts.delete(pt.id);
         }
 
-        const isVisible = (currentYear >= pt.startYear && currentYear <= pt.endYear);
+        // Zde používáme přísné porovnání (kromě posledního roku, aby se překryvy nehádaly)
+        const isVisible = (currentYear >= pt.startYear && currentYear < pt.endYear) || 
+                          (currentYear === pt.endYear && pt.endYear === -25);
         let wrapperEl = document.getElementById(`marker-wrapper-${pt.id}`);
 
         if (isVisible) {
@@ -795,6 +792,19 @@
       const year = parseInt(val, 10);
       updateYearDisplay(year);
       updateMapPointsVisibility(year);
+    }
+
+    // Funkce pro nastavení období podle názvu (vybere bezpečný rok uprostřed daného období)
+    function setPeriod(periodName) {
+      const period = PERIOD_BOUNDS.find(p => p.name === periodName);
+      if (!period) return;
+      
+      // Zvolíme rok uvnitř období (např. o 1 rok posunutý od začátku, aby nedocházelo k překryvu hranic)
+      const targetYear = period.startYear === -460 ? period.startYear : period.startYear + 1;
+      
+      const slider = document.getElementById('timeSlider');
+      slider.value = targetYear;
+      onSliderInput(targetYear);
     }
 
     function setYear(year) {
@@ -1025,7 +1035,7 @@
     function changePage(delta) {
       if (!currentPoint) return;
       const newIndex = currentPageIndex + delta;
-      if (newIndex >= 0 && newIndex < currentPoint.pages.label) { // Opraveno
+      if (newIndex >= 0 && newIndex < currentPoint.pages.length) {
         currentPageIndex = newIndex;
         updateModalPage();
       }
