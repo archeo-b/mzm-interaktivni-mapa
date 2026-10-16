@@ -50,7 +50,6 @@
       pointer-events: auto;
     }
 
-    /* Plynulý přechod průhlednosti v obou směrech (náběh i mizení) */
     .dot-wrapper {
       position: relative;
       width: 52px;
@@ -63,7 +62,6 @@
       will-change: opacity;
     }
 
-    /* Skrytý stav při filtraci časovou osou */
     .dot-wrapper.dot-hidden {
       opacity: 0 !important;
       pointer-events: none !important;
@@ -623,16 +621,35 @@
     }
 
     function parseDateToYears(dateStr) {
-      if (!dateStr) return { start: -9999, end: 9999 };
+      if (!dateStr) return { start: -460, end: -25 };
       const str = String(dateStr).toUpperCase().replace(/\s+/g, '');
 
       let foundIndices = [];
       PERIOD_BOUNDS.forEach((p, idx) => {
+        // Hledáme přesnou shodu tokenu (např. abychom odlišili "LT B" od "LT B1" nebo "LT B2")
         const code = p.name.replace(/\s+/g, '');
-        if (str.includes(code)) {
+        
+        // Zkontrolujeme, zda text obsahuje přesný název období oddělený hranicemi (čárka, pomlčka, konec řetězce atd.)
+        const regex = new RegExp(`\\b${code}\\b`, 'i');
+        if (regex.test(str) || str === code) {
           foundIndices.push(idx);
         }
       });
+
+      // Pokud selže přesná word boundary, zkusíme prosté zahrnutí podřetězce s prioritou delších řetězců
+      if (foundIndices.length === 0) {
+        // Seřadíme periody sestupně podle délky názvu (např. LT B1 před LT B)
+        const sortedPeriods = [...PERIOD_BOUNDS].map((p, idx) => ({ ...p, originalIdx: idx }))
+          .sort((a, b) => b.name.length - a.name.length);
+        
+        for (const p of sortedPeriods) {
+          const code = p.name.replace(/\s+/g, '');
+          if (str.includes(code)) {
+            foundIndices.push(p.originalIdx);
+            break; // Najdeme první největší shodu
+          }
+        }
+      }
 
       if (foundIndices.length > 0) {
         const minIdx = Math.min(...foundIndices);
@@ -1008,7 +1025,7 @@
     function changePage(delta) {
       if (!currentPoint) return;
       const newIndex = currentPageIndex + delta;
-      if (newIndex >= 0 && newIndex < currentPoint.pages.length) {
+      if (newIndex >= 0 && newIndex < currentPoint.pages.label) { // Opraveno
         currentPageIndex = newIndex;
         updateModalPage();
       }
